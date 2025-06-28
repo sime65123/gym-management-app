@@ -121,8 +121,8 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
   }
 
   const handleDeleteAbonnement = async (id: number) => {
-    try {
-      await apiClient.deleteAbonnement(id)
+      try {
+        await apiClient.deleteAbonnement(id)
       setAbonnements(prev => {
         const newList = prev.filter(a => a.id !== id)
         console.log('Liste abonnements après suppression:', newList)
@@ -133,7 +133,7 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
         description: "L'abonnement a été supprimé.",
         duration: 5000,
       })
-    } catch (error) {
+      } catch (error) {
       toast({
         title: "Erreur",
         description: "La suppression a échoué.",
@@ -193,76 +193,76 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
             <Button variant="outline" onClick={loadAbonnements} title="Actualiser la liste">
               <RotateCcw className="h-4 w-4" />
             </Button>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => resetForm()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nouvel abonnement
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Créer un nouvel abonnement</DialogTitle>
-                  <DialogDescription>Ajoutez un nouveau type d'abonnement à votre salle</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => resetForm()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nouvel abonnement
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Créer un nouvel abonnement</DialogTitle>
+                <DialogDescription>Ajoutez un nouveau type d'abonnement à votre salle</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nom">Nom de l'abonnement</Label>
+                  <Input
+                    id="nom"
+                    value={formData.nom}
+                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
+                    placeholder="Ex: Abonnement Mensuel"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Décrivez les avantages de cet abonnement..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="nom">Nom de l'abonnement</Label>
+                    <Label htmlFor="prix">Prix (FCFA)</Label>
                     <Input
-                      id="nom"
-                      value={formData.nom}
-                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                      placeholder="Ex: Abonnement Mensuel"
+                      id="prix"
+                      type="number"
+                      value={formData.prix}
+                      onChange={(e) => setFormData({ ...formData, prix: e.target.value })}
+                      placeholder="25000"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Décrivez les avantages de cet abonnement..."
+                    <Label htmlFor="duree">Durée (jours)</Label>
+                    <Input
+                      id="duree"
+                      type="number"
+                      value={formData.duree_jours}
+                      onChange={(e) => setFormData({ ...formData, duree_jours: e.target.value })}
+                      placeholder="30"
                     />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="prix">Prix (FCFA)</Label>
-                      <Input
-                        id="prix"
-                        type="number"
-                        value={formData.prix}
-                        onChange={(e) => setFormData({ ...formData, prix: e.target.value })}
-                        placeholder="25000"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="duree">Durée (jours)</Label>
-                      <Input
-                        id="duree"
-                        type="number"
-                        value={formData.duree_jours}
-                        onChange={(e) => setFormData({ ...formData, duree_jours: e.target.value })}
-                        placeholder="30"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="actif"
-                      checked={formData.actif}
-                      onCheckedChange={(checked) => setFormData({ ...formData, actif: checked })}
-                    />
-                    <Label htmlFor="actif">Abonnement actif</Label>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Annuler
-                  </Button>
-                  <Button onClick={handleCreateAbonnement}>Créer</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="actif"
+                    checked={formData.actif}
+                    onCheckedChange={(checked) => setFormData({ ...formData, actif: checked })}
+                  />
+                  <Label htmlFor="actif">Abonnement actif</Label>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleCreateAbonnement}>Créer</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           </div>
         </div>
       </CardHeader>

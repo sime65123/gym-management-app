@@ -85,22 +85,22 @@ export function InvoiceManagement() {
 
   const getPaymentModeBadge = (mode: string) => {
     switch (mode) {
-      case "CINETPAY":
-        return (
-          <Badge variant="outline" className="bg-purple-50 text-purple-700">
-            CinetPay
-          </Badge>
-        )
       case "ESPECE":
         return (
           <Badge variant="outline" className="bg-green-50 text-green-700">
             Espèces
           </Badge>
         )
-      case "SOLDE":
+      case "CARTE":
         return (
           <Badge variant="outline" className="bg-blue-50 text-blue-700">
-            Solde
+            Carte
+          </Badge>
+        )
+      case "CHEQUE":
+        return (
+          <Badge variant="outline" className="bg-purple-50 text-purple-700">
+            Chèque
           </Badge>
         )
       default:

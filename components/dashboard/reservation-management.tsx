@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -10,39 +10,49 @@ import { Calendar, Users, Trash2, CheckCircle, XCircle, Clock, RotateCcw } from 
 import { apiClient } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
-
-interface Reservation {
-  id: number
-  client: string
-  seance: {
-    id: number
-    titre: string
-    date_heure: string
-    coach: string
-  }
-  date_reservation: string
-  statut: "CONFIRMEE" | "ANNULEE"
-}
+import { Reservation as ReservationType, Ticket } from "@/lib/api"
 
 export function ReservationManagement() {
-  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [reservations, setReservations] = useState<ReservationType[]>([])
+  const [ticketsByReservation, setTicketsByReservation] = useState<Record<number, Ticket[]>>({})
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const { toast } = useToast()
+  const [abonnements, setAbonnements] = useState<any[]>([])
+  const abonnementsLoaded = useRef(false)
 
   useEffect(() => {
     loadReservations()
+    if (!abonnementsLoaded.current) {
+      loadAbonnements()
+      abonnementsLoaded.current = true
+    }
   }, [])
 
   const loadReservations = async () => {
     try {
       const response = await apiClient.getReservations()
-      console.log("API reservations", response)
-      setReservations([...(response.results || response)])
+      const reservations = [...(response.results || response)]
+      setReservations(reservations)
+      // Récupérer les tickets pour chaque réservation
+      const ticketsMap: Record<number, Ticket[]> = {}
+      for (const reservation of reservations) {
+        ticketsMap[reservation.id] = await apiClient.getTicketsByReservation(reservation.id)
+      }
+      setTicketsByReservation(ticketsMap)
     } catch (error) {
       console.error("Erreur lors du chargement des réservations:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAbonnements = async () => {
+    try {
+      const response = await apiClient.getAbonnements()
+      setAbonnements([...(response.results || response)])
+    } catch (error) {
+      console.error("Erreur lors du chargement des abonnements:", error)
     }
   }
 
@@ -66,8 +76,8 @@ export function ReservationManagement() {
   }
 
   const handleDeleteReservation = async (id: number) => {
-    try {
-      await apiClient.deleteReservation(id)
+      try {
+        await apiClient.deleteReservation(id)
       setReservations(prev => {
         const newList = prev.filter(r => r.id !== id)
         console.log('Liste réservations après suppression:', newList)
@@ -78,10 +88,29 @@ export function ReservationManagement() {
         description: "La réservation a été supprimée.",
         duration: 5000,
       })
-    } catch (error) {
+      } catch (error) {
       toast({
         title: "Erreur",
         description: "La suppression a échoué.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    }
+  }
+
+  const handleValiderReservation = async (id: number) => {
+    try {
+      await apiClient.validerReservation(id)
+      loadReservations()
+      toast({
+        title: "Réservation validée",
+        description: "La réservation a été validée et la facture générée.",
+        duration: 5000,
+      })
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "La validation a échoué.",
         variant: "destructive",
         duration: 5000,
       })
@@ -185,16 +214,16 @@ export function ReservationManagement() {
               <CardDescription>Consultez et gérez toutes les réservations</CardDescription>
             </div>
             <div className="flex gap-2 items-center">
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes les réservations</SelectItem>
-                  <SelectItem value="CONFIRMEE">Confirmées</SelectItem>
-                  <SelectItem value="ANNULEE">Annulées</SelectItem>
-                </SelectContent>
-              </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les réservations</SelectItem>
+                <SelectItem value="CONFIRMEE">Confirmées</SelectItem>
+                <SelectItem value="ANNULEE">Annulées</SelectItem>
+              </SelectContent>
+            </Select>
               <Button variant="outline" onClick={loadReservations} title="Actualiser la liste">
                 <RotateCcw className="h-4 w-4" />
               </Button>
@@ -207,73 +236,96 @@ export function ReservationManagement() {
               <TableRow>
                 <TableHead>Client</TableHead>
                 <TableHead>Séance</TableHead>
-                <TableHead>Date & Heure</TableHead>
-                <TableHead>Coach</TableHead>
-                <TableHead>Réservé le</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Billet</TableHead>
+                <TableHead>Facture</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredReservations.map((reservation) => (
-                <TableRow key={reservation.id}>
-                  <TableCell className="font-medium">{reservation.client}</TableCell>
-                  <TableCell>{reservation.seance.titre}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center text-sm">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      {new Date(reservation.seance.date_heure).toLocaleString("fr-FR")}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center text-sm">
-                      <Users className="h-4 w-4 mr-1" />
-                      {reservation.seance.coach}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center text-sm">
-                      <Clock className="h-4 w-4 mr-1" />
-                      {new Date(reservation.date_reservation).toLocaleDateString("fr-FR")}
-                    </div>
-                  </TableCell>
-                  <TableCell>{getStatusBadge(reservation.statut)}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      {reservation.statut === "CONFIRMEE" ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateStatus(reservation.id, "ANNULEE")}
-                        >
-                          <XCircle className="h-4 w-4 mr-1" />
-                          Annuler
-                        </Button>
+              {filteredReservations.map((reservation) => {
+                const tickets = ticketsByReservation[reservation.id] || []
+                const billet = tickets.find(t => t.type_ticket === "SEANCE")
+                const facture = tickets.find(t => t.type_ticket === "SEANCE" && t.paiement.status === "PAYE")
+                return (
+                  <TableRow key={reservation.id}>
+                    <TableCell>{reservation.client_nom || (typeof reservation.client === "object" ? reservation.client.nom : "-")}</TableCell>
+                    <TableCell>{reservation.seance && reservation.seance.titre}</TableCell>
+                    <TableCell>{reservation.seance && reservation.seance.date_heure ? new Date(reservation.seance.date_heure).toLocaleString("fr-FR") : "-"}</TableCell>
+                    <TableCell>{getStatusBadge(reservation.statut)}</TableCell>
+                    <TableCell>
+                      {billet && billet.fichier_pdf_url ? (
+                        <a href={billet.fichier_pdf_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Télécharger</a>
                       ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateStatus(reservation.id, "CONFIRMEE")}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Confirmer
+                        <span className="text-gray-400">Aucun</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {facture && facture.fichier_pdf_url ? (
+                        <a href={facture.fichier_pdf_url} target="_blank" rel="noopener noreferrer" className="text-green-600 underline">Télécharger</a>
+                      ) : (
+                        <span className="text-gray-400">Aucune</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {reservation.statut === "EN_ATTENTE" && (
+                        <Button size="sm" variant="success" onClick={() => handleValiderReservation(reservation.id)}>
+                          Valider
                         </Button>
                       )}
-                      <Button variant="outline" size="sm">
-                        <ConfirmDeleteButton onDelete={() => handleDeleteReservation(reservation.id)}>
-                          <span className="flex items-center"><Trash2 className="h-4 w-4" /></span>
-                        </ConfirmDeleteButton>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
 
           {filteredReservations.length === 0 && (
             <div className="text-center py-8 text-gray-500">Aucune réservation trouvée</div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Abonnements réservés (tous clients) */}
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle>Réservations d'Abonnements</CardTitle>
+          <CardDescription>Liste de tous les abonnements réservés par les clients</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead>Abonnement</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Durée</TableHead>
+                <TableHead>Statut</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {abonnements.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center">Aucun abonnement réservé</TableCell>
+                </TableRow>
+              ) : (
+                abonnements.map((abonnement) => (
+                  <TableRow key={abonnement.id}>
+                    <TableCell>{abonnement.client_nom || abonnement.client?.nom || "-"}</TableCell>
+                    <TableCell>{abonnement.nom}</TableCell>
+                    <TableCell>{abonnement.description}</TableCell>
+                    <TableCell>{abonnement.duree_jours} jours</TableCell>
+                    <TableCell>
+                      <Badge className={abonnement.actif ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-600"}>
+                        {abonnement.actif ? "Actif" : "Expiré"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

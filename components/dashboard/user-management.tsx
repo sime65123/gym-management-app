@@ -105,8 +105,8 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
   }
 
   const handleDeleteUser = async (id: number) => {
-    try {
-      await apiClient.deleteUser(id)
+      try {
+        await apiClient.deleteUser(id)
       setUsers(prev => {
         const newList = prev.filter(u => u.id !== id)
         console.log('Liste users après suppression:', newList)
@@ -117,7 +117,7 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
         description: "L'utilisateur a été supprimé.",
         duration: 5000,
       })
-    } catch (error) {
+      } catch (error) {
       toast({
         title: "Erreur",
         description: "La suppression a échoué.",
@@ -190,88 +190,88 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
             <Button variant="outline" onClick={loadUsers} title="Actualiser la liste">
               <RotateCcw className="h-4 w-4" />
             </Button>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => resetForm()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nouvel utilisateur
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
-                  <DialogDescription>Ajoutez un nouveau membre à votre équipe ou un client</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="prenom">Prénom</Label>
-                      <Input
-                        id="prenom"
-                        value={formData.prenom}
-                        onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="nom">Nom</Label>
-                      <Input
-                        id="nom"
-                        value={formData.nom}
-                        onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                      />
-                    </div>
-                  </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => resetForm()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nouvel utilisateur
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
+                <DialogDescription>Ajoutez un nouveau membre à votre équipe ou un client</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="prenom">Prénom</Label>
                     <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      id="prenom"
+                      value={formData.prenom}
+                      onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="telephone">Téléphone</Label>
+                    <Label htmlFor="nom">Nom</Label>
                     <Input
-                      id="telephone"
-                      value={formData.telephone}
-                      onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Rôle</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={(value: any) => setFormData({ ...formData, role: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CLIENT">Client</SelectItem>
-                        <SelectItem value="EMPLOYE">Employé</SelectItem>
-                        <SelectItem value="ADMIN">Administrateur</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Mot de passe</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      id="nom"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
                     />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Annuler
-                  </Button>
-                  <Button onClick={handleCreateUser}>Créer</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="telephone">Téléphone</Label>
+                  <Input
+                    id="telephone"
+                    value={formData.telephone}
+                    onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Rôle</Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value: any) => setFormData({ ...formData, role: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CLIENT">Client</SelectItem>
+                      <SelectItem value="EMPLOYE">Employé</SelectItem>
+                      <SelectItem value="ADMIN">Administrateur</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Mot de passe</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleCreateUser}>Créer</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           </div>
         </div>
       </CardHeader>

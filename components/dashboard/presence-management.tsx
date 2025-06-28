@@ -134,8 +134,8 @@ export function PresenceManagement() {
   }
 
   const handleDeletePresence = async (id: number) => {
-    try {
-      await apiClient.deletePresence(id)
+      try {
+        await apiClient.deletePresence(id)
       setLoading(true)
       await loadPresences()
       toast({
@@ -143,7 +143,7 @@ export function PresenceManagement() {
         description: "La présence a été supprimée.",
         duration: 5000,
       })
-    } catch (error) {
+      } catch (error) {
       toast({
         title: "Erreur",
         description: "La suppression a échoué.",
@@ -246,20 +246,20 @@ export function PresenceManagement() {
               <Button variant="outline" onClick={loadPresences} title="Actualiser la liste">
                 <RotateCcw className="h-4 w-4" />
               </Button>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => resetForm()}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Marquer Présence
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Enregistrer une présence</DialogTitle>
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => resetForm()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Marquer Présence
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Enregistrer une présence</DialogTitle>
                     <DialogDescription>Marquez la présence d'un membre du personnel ou votre propre présence</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
                       <Label>Type de présence</Label>
                       <Tabs value={presenceType} onValueChange={(value: any) => setPresenceType(value)}>
                         <TabsList className="grid w-full grid-cols-2">
@@ -289,13 +289,13 @@ export function PresenceManagement() {
                     
                     <div className="space-y-2">
                       <Label htmlFor="date_jour">Date</Label>
-                      <Input
+                    <Input
                         id="date_jour"
-                        type="date"
+                      type="date"
                         value={formData.date_jour}
                         onChange={(e) => setFormData({ ...formData, date_jour: e.target.value })}
-                      />
-                    </div>
+                    />
+                  </div>
                     <div className="space-y-2">
                       <Label htmlFor="statut">Statut</Label>
                       <Select
@@ -310,29 +310,29 @@ export function PresenceManagement() {
                           <SelectItem value="ABSENT">Absent</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
+                  </div>
                     {formData.statut === "PRESENT" && (
-                      <div className="space-y-2">
+                  <div className="space-y-2">
                         <Label htmlFor="heure_arrivee">Heure d'arrivée</Label>
                         <Input
                           id="heure_arrivee"
                           type="time"
                           value={formData.heure_arrivee}
                           onChange={(e) => setFormData({ ...formData, heure_arrivee: e.target.value })}
-                        />
-                      </div>
-                    )}
+                    />
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                      Annuler
-                    </Button>
+                    )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                    Annuler
+                  </Button>
                     <Button onClick={handleCreatePresence} disabled={presenceType === "personnel" && !selectedPersonnel}>
                       Enregistrer
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             </div>
           </div>
         </CardHeader>

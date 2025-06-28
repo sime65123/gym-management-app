@@ -10,7 +10,6 @@ interface RegisterData {
   nom: string
   prenom: string
   password: string
-  telephone?: string
 }
 
 interface User {
@@ -18,9 +17,7 @@ interface User {
   email: string
   nom: string
   prenom: string
-  telephone?: string
   role: "ADMIN" | "EMPLOYE" | "CLIENT"
-  solde: number
 }
 
 interface ApiResponse<T> {
@@ -28,6 +25,56 @@ interface ApiResponse<T> {
   count?: number
   next?: string
   previous?: string
+}
+
+interface Ticket {
+  id: number
+  uuid: string
+  date_generation: string
+  type_ticket: "ABONNEMENT" | "SEANCE"
+  paiement: any
+  fichier_pdf_url: string
+}
+
+export interface Seance {
+  id: number
+  titre: string
+  description: string
+  date_heure: string
+  coach: {
+    id: number
+    nom: string
+    prenom: string
+    categorie: string
+  } | null
+  capacite: number
+  client_id?: number | null
+  client_nom?: string | null
+  client_prenom?: string | null
+  client_email?: string | null
+  date_jour?: string | null
+  nombre_heures?: number | null
+  montant_paye?: number | null
+  paye_directement?: boolean
+  ticket_id?: number | null
+  ticket_pdf_url?: string | null
+}
+
+export interface Reservation {
+  id: number
+  client: number | { id: number; nom: string; prenom: string; email: string }
+  client_nom?: string
+  client_prenom?: string
+  seance: any
+  date_reservation: string
+  statut: "EN_ATTENTE" | "CONFIRMEE" | "ANNULEE"
+  paye?: boolean
+  ticket_pdf_url?: string | null
+  facture_pdf_url?: string | null
+  date_heure_souhaitee?: string | null
+  nombre_heures?: number
+  montant_calcule?: number | null
+  description?: string
 }
 
 class ApiClient {
@@ -228,11 +275,11 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  async createReservation(seanceId: number) {
+  async createReservation(data: { date_heure_souhaitee: string; nombre_heures: number; description?: string }) {
     const response = await fetch(`${API_BASE_URL}/reservations/`, {
       method: "POST",
       headers: this.getAuthHeaders(),
-      body: JSON.stringify({ seance: seanceId }),
+      body: JSON.stringify(data),
     })
     return this.handleResponse(response)
   }
@@ -255,24 +302,6 @@ class ApiClient {
   }
 
   // Paiements
-  async initPaiement(data: { montant: number; abonnement?: number; seance?: number; use_balance?: boolean }) {
-    const response = await fetch(`${API_BASE_URL}/init-paiement/`, {
-      method: "POST",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data),
-    })
-    return this.handleResponse(response)
-  }
-
-  async rechargeCompte(montant: number) {
-    const response = await fetch(`${API_BASE_URL}/recharge-compte/`, {
-      method: "POST",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify({ montant }),
-    })
-    return this.handleResponse(response)
-  }
-
   async getPaiements() {
     const response = await fetch(`${API_BASE_URL}/paiements/`, {
       headers: this.getAuthHeaders(),
@@ -280,30 +309,65 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  // Factures
-  async getFactures() {
-    const response = await fetch(`${API_BASE_URL}/factures/`, {
+  // Validation des paiements (Employé)
+  async validerPaiement(paiementId: number) {
+    const response = await fetch(`${API_BASE_URL}/valider-paiement/${paiementId}/`, {
+      method: "POST",
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse(response)
   }
 
-  async downloadFacturePDF(factureId: number) {
-    // Le backend utilise le champ fichier_pdf_url directement
-    const response = await fetch(`${API_BASE_URL}/factures/${factureId}/`, {
+  // Paiement direct à la salle (Employé)
+  async paiementDirect(data: {
+    client_id: number
+    montant: number
+    mode_paiement?: string
+    abonnement_id?: number
+    seance_id?: number
+  }) {
+    const response = await fetch(`${API_BASE_URL}/paiement-direct/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse(response)
+  }
+
+  // Abonnement direct à la salle (Employé)
+  async abonnementDirect(data: {
+    client_id: number
+    abonnement_id: number
+    mode_paiement?: string
+  }) {
+    const response = await fetch(`${API_BASE_URL}/abonnement-direct/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse(response)
+  }
+
+  // Tickets (remplace Factures)
+  async getTickets(): Promise<ApiResponse<Ticket>> {
+    const response = await fetch(`${API_BASE_URL}/tickets/`, {
       headers: this.getAuthHeaders(),
     })
-    const facture = await this.handleResponse(response)
-    // Retourner l'URL du PDF depuis le champ fichier_pdf_url
-    return facture.fichier_pdf_url
+    return this.handleResponse<ApiResponse<Ticket>>(response)
   }
 
-  async sendFactureByEmail(factureId: number) {
-    // Cette méthode n'existe pas dans le backend selon la documentation
-    throw new Error("Fonctionnalité non disponible")
+  async downloadTicketPDF(ticketId: number) {
+    const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/`, {
+      headers: this.getAuthHeaders(),
+    })
+    const ticket = await this.handleResponse<Ticket>(response)
+    
+    if (ticket.fichier_pdf_url) {
+      window.open(ticket.fichier_pdf_url, '_blank')
+    }
   }
 
-  // Charges (Admin only)
+  // Charges
   async getCharges() {
     const response = await fetch(`${API_BASE_URL}/charges/`, {
       headers: this.getAuthHeaders(),
@@ -337,7 +401,7 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  // Présences
+  // Présence Personnel
   async getPresences() {
     const response = await fetch(`${API_BASE_URL}/presences/`, {
       headers: this.getAuthHeaders(),
@@ -371,7 +435,7 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  // Rapports financiers (Admin only)
+  // Rapports Financiers
   async getFinancialReport() {
     const response = await fetch(`${API_BASE_URL}/financial-report/`, {
       headers: this.getAuthHeaders(),
@@ -379,6 +443,7 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
+  // Profil utilisateur
   async updateProfile(userData: any) {
     const response = await fetch(`${API_BASE_URL}/me/`, {
       method: "PATCH",
@@ -388,7 +453,7 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  // Personnel (Admin only)
+  // Personnel
   async getPersonnel() {
     const response = await fetch(`${API_BASE_URL}/personnel/`, {
       headers: this.getAuthHeaders(),
@@ -422,14 +487,73 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  // Rapport journalier des présences (Admin only)
+  // Rapport journalier
   async getRapportJournalier() {
     const response = await fetch(`${API_BASE_URL}/presences/rapport_journalier/`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse(response)
   }
+
+  async getClients(): Promise<User[]> {
+    const response = await fetch(`${API_BASE_URL}/users/?role=CLIENT`, {
+      headers: this.getAuthHeaders(),
+    })
+    const data = await this.handleResponse<ApiResponse<User>>(response)
+    return data.results || []
+  }
+
+  async createSeanceDirect(data: any) {
+    const response = await fetch(`${API_BASE_URL}/seances/direct/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse<Seance>(response)
+  }
+
+  async getTicketsByReservation(reservationId: number): Promise<Ticket[]> {
+    const response = await fetch(`${API_BASE_URL}/tickets/?reservation=${reservationId}`, {
+      headers: this.getAuthHeaders(),
+    })
+    const data = await this.handleResponse<ApiResponse<Ticket>>(response)
+    return data.results || []
+  }
+
+  async validerReservation(reservationId: number) {
+    const response = await fetch(`${API_BASE_URL}/reservations/${reservationId}/valider/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse(response)
+  }
+
+  async createAbonnementReservation(abonnementId: number) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-client/reserver/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ abonnement_id: abonnementId }),
+    })
+    return this.handleResponse(response)
+  }
+
+  // Abonnements clients (employé)
+  async getAbonnementsClients() {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients/`, {
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse(response)
+  }
+
+  async createAbonnementClientDirect(data: { client_id: string; abonnement_id: string; date_debut: string }) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-client/direct/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse(response)
+  }
 }
 
 export const apiClient = new ApiClient()
-export type { User, LoginCredentials, RegisterData }
+export type { User, Ticket, ApiResponse }

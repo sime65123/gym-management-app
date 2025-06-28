@@ -531,7 +531,7 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600 text-center">
-                  Paiements en ligne sécurisés avec CinetPay et recharge de compte
+                  Paiements sécurisés sur place avec tickets de paiement
                 </p>
               </CardContent>
             </Card>

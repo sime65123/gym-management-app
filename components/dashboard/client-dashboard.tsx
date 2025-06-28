@@ -5,40 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Calendar, CreditCard, FileText, Wallet, Clock, CheckCircle, XCircle } from "lucide-react"
-import { apiClient, type User } from "@/lib/api"
-import { InvoiceManagement } from "./invoice-management"
-import { CinetPayIntegration } from "../payment/cinetpay-integration"
-
-interface Seance {
-  id: number
-  titre: string
-  description: string
-  date_heure: string
-  coach: string
-  capacite: number
-}
-
-interface Reservation {
-  id: number
-  client: string
-  seance: {
-    id: number
-    titre: string
-    date_heure: string
-    coach: string
-  }
-  date_reservation: string
-  statut: "CONFIRMEE" | "ANNULEE"
-}
+import { Calendar, CreditCard, FileText, Clock, CheckCircle, XCircle, Download } from "lucide-react"
+import { apiClient, type User, type Ticket, Reservation as ReservationType } from "@/lib/api"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 
 interface Abonnement {
   id: number
@@ -47,6 +18,8 @@ interface Abonnement {
   prix: number
   duree_jours: number
   actif: boolean
+  ticket_pdf_url?: string
+  facture_pdf_url?: string
 }
 
 interface Paiement {
@@ -54,20 +27,24 @@ interface Paiement {
   montant: number
   date_paiement: string
   status: "EN_ATTENTE" | "PAYE" | "ECHEC"
-  mode_paiement: "CINETPAY" | "ESPECE" | "SOLDE"
+  mode_paiement: "ESPECE" | "CARTE" | "CHEQUE"
   abonnement?: { nom: string }
   seance?: { titre: string }
 }
 
 export function ClientDashboard({ user }: { user: User }) {
   console.log('CLIENT DASHBOARD USER:', user)
-  const [seances, setSeances] = useState<Seance[]>([])
-  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [reservations, setReservations] = useState<ReservationType[]>([])
   const [abonnements, setAbonnements] = useState<Abonnement[]>([])
   const [paiements, setPaiements] = useState<Paiement[]>([])
+  const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
-  const [rechargeAmount, setRechargeAmount] = useState("")
-  const [isRechargeDialogOpen, setIsRechargeDialogOpen] = useState(false)
+  const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
+  const [reservationForm, setReservationForm] = useState({
+    date_heure_souhaitee: "",
+    nombre_heures: 1,
+    description: ""
+  })
 
   useEffect(() => {
     loadClientData()
@@ -75,17 +52,17 @@ export function ClientDashboard({ user }: { user: User }) {
 
   const loadClientData = async () => {
     try {
-      const [seancesData, reservationsData, abonnementsData, paiementsData] = await Promise.all([
-        apiClient.getSeances(),
+      const [reservationsData, abonnementsData, paiementsData, ticketsData] = await Promise.all([
         apiClient.getReservations(),
         apiClient.getAbonnements(),
         apiClient.getPaiements(),
+        apiClient.getTickets(),
       ])
 
-      setSeances((seancesData as any).results || (seancesData as Seance[]))
-      setReservations((reservationsData as any).results || (reservationsData as Reservation[]))
+      setReservations((reservationsData as any).results || (reservationsData as ReservationType[]))
       setAbonnements((abonnementsData as any).results || (abonnementsData as Abonnement[]))
       setPaiements((paiementsData as any).results || (paiementsData as Paiement[]))
+      setTickets((ticketsData as any).results || (ticketsData as Ticket[]))
     } catch (error) {
       console.error("Erreur lors du chargement des données:", error)
     } finally {
@@ -93,11 +70,24 @@ export function ClientDashboard({ user }: { user: User }) {
     }
   }
 
+  const handleCreateReservation = async () => {
+    try {
+      await apiClient.createReservation(reservationForm)
+      setIsReservationDialogOpen(false)
+      setReservationForm({ date_heure_souhaitee: "", nombre_heures: 1, description: "" })
+      loadClientData()
+      alert("Réservation effectuée avec succès! Vous pouvez télécharger votre ticket et vous rendre à la salle pour payer.")
+    } catch (error) {
+      console.error("Erreur lors de la réservation:", error)
+      alert("Erreur lors de la réservation")
+    }
+  }
+
   const handleReservation = async (seanceId: number) => {
     try {
       await apiClient.createReservation(seanceId)
       loadClientData()
-      alert("Réservation effectuée avec succès!")
+      alert("Réservation effectuée avec succès! Veuillez vous rendre à la salle pour payer et confirmer votre réservation.")
     } catch (error) {
       console.error("Erreur lors de la réservation:", error)
       alert("Erreur lors de la réservation")
@@ -115,48 +105,23 @@ export function ClientDashboard({ user }: { user: User }) {
     }
   }
 
-  const handleRecharge = async () => {
+  const handleDownloadTicket = async (ticketId: number) => {
     try {
-      const amount = Number.parseFloat(rechargeAmount)
-      if (amount <= 0) {
-        alert("Montant invalide")
-        return
-      }
-
-      // Utiliser le composant CinetPayIntegration
-      const response = await apiClient.rechargeCompte(amount)
-
-      if ((response as any).cinetpay_response?.payment_url) {
-        window.location.href = (response as any).cinetpay_response.payment_url
-      } else {
-        alert("Recharge effectuée avec succès!")
-        loadClientData()
-      }
-
-      setIsRechargeDialogOpen(false)
-      setRechargeAmount("")
+      await apiClient.downloadTicketPDF(ticketId)
     } catch (error) {
-      console.error("Erreur lors de la recharge:", error)
-      alert("Erreur lors de la recharge")
+      console.error("Erreur lors du téléchargement:", error)
+      alert("Erreur lors du téléchargement du ticket")
     }
   }
 
-  const handleAbonnementPurchase = async (abonnement: Abonnement) => {
+  const handleReserverAbonnement = async (abonnementId: number) => {
     try {
-      const response = await apiClient.initPaiement({
-        montant: abonnement.prix,
-        abonnement: abonnement.id,
-      })
-
-      if ((response as any).cinetpay_response?.payment_url) {
-        window.location.href = (response as any).cinetpay_response.payment_url
-      } else {
-        alert("Abonnement acheté avec succès!")
-        loadClientData()
-      }
+      await apiClient.createAbonnementReservation(abonnementId)
+      loadClientData()
+      alert("Réservation d'abonnement effectuée avec succès! Vous pouvez télécharger votre ticket et vous rendre à la salle pour payer.")
     } catch (error) {
-      console.error("Erreur lors de l'achat:", error)
-      alert("Erreur lors de l'achat de l'abonnement")
+      console.error("Erreur lors de la réservation d'abonnement:", error)
+      alert("Erreur lors de la réservation d'abonnement")
     }
   }
 
@@ -185,6 +150,7 @@ export function ClientDashboard({ user }: { user: User }) {
   })
   // Les paiements n'ont pas de champ client exploitable côté front, donc on ne filtre pas
   const filteredPaiements = paiements
+  const filteredTickets = tickets
 
   if (loading) {
     return (
@@ -207,84 +173,70 @@ export function ClientDashboard({ user }: { user: User }) {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-blue-100">Solde du compte</p>
-              <p className="text-3xl font-bold">{user.solde?.toLocaleString() || 0} FCFA</p>
+              <p className="text-sm text-blue-100">Votre espace client</p>
+              <p className="text-lg font-bold">Réservations et tickets</p>
             </div>
-            <Dialog open={isRechargeDialogOpen} onOpenChange={setIsRechargeDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary">
-                  <Wallet className="h-4 w-4 mr-2" />
-                  Recharger
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Recharger votre compte</DialogTitle>
-                  <DialogDescription>Ajoutez des fonds à votre compte via CinetPay</DialogDescription>
-                </DialogHeader>
-                <CinetPayIntegration
-                  amount={Number.parseFloat(rechargeAmount) || 0}
-                  type="recharge"
-                  onSuccess={() => {
-                    setIsRechargeDialogOpen(false)
-                    setRechargeAmount("")
-                    loadClientData()
-                  }}
-                  onError={(error) => {
-                    console.error("Erreur de paiement:", error)
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
           </div>
         </CardContent>
       </Card>
 
       {/* Main Tabs */}
-      <Tabs defaultValue="seances" className="space-y-4">
+      <Tabs defaultValue="reserver" className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="seances">Séances</TabsTrigger>
+          <TabsTrigger value="reserver">Réserver une séance</TabsTrigger>
           <TabsTrigger value="abonnements">Abonnements</TabsTrigger>
           <TabsTrigger value="reservations">Mes Réservations</TabsTrigger>
           <TabsTrigger value="paiements">Mes Paiements</TabsTrigger>
-          <TabsTrigger value="factures">Mes Factures</TabsTrigger>
+          <TabsTrigger value="tickets">Mes Tickets</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="seances">
+        <TabsContent value="reserver">
           <Card>
             <CardHeader>
-              <CardTitle>Séances Disponibles</CardTitle>
-              <CardDescription>Réservez vos séances de sport</CardDescription>
+              <CardTitle>Réserver une séance</CardTitle>
+              <CardDescription>Programmez votre séance de sport</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {seances.map((seance) => (
-                  <Card key={seance.id} className="border-2 hover:border-blue-300 transition-colors">
-                    <CardHeader>
-                      <CardTitle className="text-lg">{seance.titre}</CardTitle>
-                      <CardDescription>{seance.description}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-2" />
-                          {new Date(seance.date_heure).toLocaleString("fr-FR")}
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="h-4 w-4 mr-2" />
-                          Coach: {typeof seance.coach === 'object' && seance.coach !== null ? `${(seance.coach as any).prenom} ${(seance.coach as any).nom}` : seance.coach}
-                        </div>
-                        <div className="flex items-center">
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Capacité: {seance.capacite} places
-                        </div>
-                      </div>
-                      <Button className="w-full mt-4" onClick={() => handleReservation(seance.id)}>
-                        Réserver
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="date_heure">Date et heure souhaitées</Label>
+                  <Input
+                    id="date_heure"
+                    type="datetime-local"
+                    value={reservationForm.date_heure_souhaitee}
+                    onChange={(e) => setReservationForm({ ...reservationForm, date_heure_souhaitee: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="nombre_heures">Nombre d'heures</Label>
+                  <Input
+                    id="nombre_heures"
+                    type="number"
+                    min="1"
+                    max="8"
+                    value={reservationForm.nombre_heures}
+                    onChange={(e) => setReservationForm({ ...reservationForm, nombre_heures: Number(e.target.value) })}
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Tarif : {reservationForm.nombre_heures * 5000} FCFA ({reservationForm.nombre_heures} heure(s) × 5000 FCFA)
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="description">Description/Commentaire (optionnel)</Label>
+                  <Textarea
+                    id="description"
+                    value={reservationForm.description}
+                    onChange={(e) => setReservationForm({ ...reservationForm, description: e.target.value })}
+                    placeholder="Précisez vos besoins ou commentaires..."
+                  />
+                </div>
+                <Button 
+                  onClick={handleCreateReservation}
+                  disabled={!reservationForm.date_heure_souhaitee || reservationForm.nombre_heures < 1}
+                  className="w-full"
+                >
+                  Réserver ma séance
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -294,34 +246,36 @@ export function ClientDashboard({ user }: { user: User }) {
           <Card>
             <CardHeader>
               <CardTitle>Abonnements Disponibles</CardTitle>
-              <CardDescription>Choisissez l'abonnement qui vous convient</CardDescription>
+              <CardDescription>Réservez votre abonnement de sport</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {abonnements
-                  .filter((a) => a.actif)
-                  .map((abonnement) => (
-                    <Card key={abonnement.id} className="border-2 hover:border-green-300 transition-colors">
-                      <CardHeader>
-                        <CardTitle className="text-lg">{abonnement.nom}</CardTitle>
-                        <CardDescription>{abonnement.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="text-2xl font-bold text-green-600">
-                            {abonnement.prix.toLocaleString()} FCFA
-                          </div>
-                          <div className="text-sm text-gray-600">Durée: {abonnement.duree_jours} jours</div>
+                {abonnements.map((abonnement) => (
+                  <Card key={abonnement.id} className="border-2 hover:border-blue-300 transition-colors">
+                    <CardHeader>
+                      <CardTitle className="text-lg">{abonnement.nom}</CardTitle>
+                      <CardDescription>{abonnement.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span>Prix :</span>
+                          <span className="font-bold text-green-600">{abonnement.prix} FCFA</span>
                         </div>
-                        <Button
-                          className="w-full mt-4 bg-green-600 hover:bg-green-700"
-                          onClick={() => handleAbonnementPurchase(abonnement)}
-                        >
-                          Acheter
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        <div className="flex items-center justify-between">
+                          <span>Durée :</span>
+                          <span>{abonnement.duree_jours} jours</span>
+                        </div>
+                      </div>
+                      <Button 
+                        className="w-full mt-4" 
+                        onClick={() => handleReserverAbonnement(abonnement.id)}
+                      >
+                        Réserver cet abonnement
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -335,6 +289,7 @@ export function ClientDashboard({ user }: { user: User }) {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* Réservations de séances */}
                 {filteredReservations.map((reservation) => (
                   <Card key={reservation.id} className="border">
                     <CardContent className="pt-6">
@@ -354,11 +309,31 @@ export function ClientDashboard({ user }: { user: User }) {
                               <Calendar className="h-4 w-4 mr-2" />
                               Réservé le: {new Date(reservation.date_reservation).toLocaleDateString("fr-FR")}
                             </div>
+                            <div className="flex items-center">
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Paiement: {reservation.paye ? "Payé" : "En attente"}
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end gap-2">
                           {getStatusBadge(reservation.statut)}
-                          {reservation.statut === "CONFIRMEE" && (
+                          {reservation.statut === "EN_ATTENTE" && !reservation.paye && reservation.ticket_pdf_url && (
+                            <a href={reservation.ticket_pdf_url} target="_blank" rel="noopener noreferrer">
+                              <Button variant="outline" size="sm">
+                                <Download className="h-4 w-4 mr-1" />
+                                Télécharger le Ticket
+                              </Button>
+                            </a>
+                          )}
+                          {reservation.statut === "CONFIRMEE" && reservation.paye && reservation.facture_pdf_url && (
+                            <a href={reservation.facture_pdf_url} target="_blank" rel="noopener noreferrer">
+                              <Button variant="outline" size="sm">
+                                <Download className="h-4 w-4 mr-1" />
+                                Télécharger la Facture
+                              </Button>
+                            </a>
+                          )}
+                          {reservation.statut === "EN_ATTENTE" && !reservation.paye && (
                             <Button variant="outline" size="sm" onClick={() => handleCancelReservation(reservation.id)}>
                               <XCircle className="h-4 w-4 mr-1" />
                               Annuler
@@ -372,6 +347,49 @@ export function ClientDashboard({ user }: { user: User }) {
                 {filteredReservations.length === 0 && (
                   <div className="text-center py-8 text-gray-500">Aucune réservation trouvée</div>
                 )}
+
+                {/* Abonnements réservés */}
+                <div className="mt-8">
+                  <h3 className="text-lg font-semibold mb-2">Mes Abonnements</h3>
+                  <div className="space-y-4">
+                    {abonnements.length === 0 && (
+                      <div className="text-center py-4 text-gray-500">Aucun abonnement réservé</div>
+                    )}
+                    {abonnements.map((abonnement) => (
+                      <Card key={abonnement.id} className="border bg-blue-50">
+                        <CardContent className="pt-4 pb-4 flex flex-col md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <div className="font-semibold text-blue-900">{abonnement.nom}</div>
+                            <div className="text-sm text-gray-700">{abonnement.description}</div>
+                            <div className="text-xs text-gray-500 mt-1">Durée : {abonnement.duree_jours} jours</div>
+                            {/* Si date de début/fin disponible, les afficher ici */}
+                          </div>
+                          <div className="flex flex-col items-end gap-2 mt-2 md:mt-0">
+                            <Badge className={abonnement.actif ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-600"}>
+                              {abonnement.actif ? "Actif" : "Inactif"}
+                            </Badge>
+                            {abonnement.ticket_pdf_url && !abonnement.actif && (
+                              <a href={abonnement.ticket_pdf_url} target="_blank" rel="noopener noreferrer">
+                                <Button variant="outline" size="sm">
+                                  <Download className="h-4 w-4 mr-1" />
+                                  Télécharger le Ticket
+                                </Button>
+                              </a>
+                            )}
+                            {abonnement.facture_pdf_url && abonnement.actif && (
+                              <a href={abonnement.facture_pdf_url} target="_blank" rel="noopener noreferrer">
+                                <Button variant="outline" size="sm">
+                                  <Download className="h-4 w-4 mr-1" />
+                                  Télécharger la Facture
+                                </Button>
+                              </a>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -381,7 +399,7 @@ export function ClientDashboard({ user }: { user: User }) {
           <Card>
             <CardHeader>
               <CardTitle>Historique des Paiements</CardTitle>
-              <CardDescription>Consultez vos transactions et téléchargez vos factures</CardDescription>
+              <CardDescription>Consultez vos transactions</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -393,7 +411,7 @@ export function ClientDashboard({ user }: { user: User }) {
                           <div className="flex items-center gap-2">
                             <CreditCard className="h-4 w-4" />
                             <span className="font-semibold">
-                              {paiement.abonnement?.nom || paiement.seance?.titre || "Recharge compte"}
+                              {paiement.abonnement?.nom || paiement.seance?.titre || "Paiement"}
                             </span>
                           </div>
                           <div className="text-sm text-gray-600 space-y-1">
@@ -404,12 +422,6 @@ export function ClientDashboard({ user }: { user: User }) {
                         </div>
                         <div className="flex items-center gap-2">
                           {getStatusBadge(paiement.status)}
-                          {paiement.status === "PAYE" && (
-                            <Button variant="outline" size="sm">
-                              <FileText className="h-4 w-4 mr-1" />
-                              Facture
-                            </Button>
-                          )}
                         </div>
                       </div>
                     </CardContent>
@@ -420,14 +432,59 @@ export function ClientDashboard({ user }: { user: User }) {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="factures">
+
+        <TabsContent value="tickets">
           <Card>
             <CardHeader>
-              <CardTitle>Mes Factures</CardTitle>
-              <CardDescription>Consultez et téléchargez vos factures</CardDescription>
+              <CardTitle>Mes Tickets</CardTitle>
+              <CardDescription>Consultez et téléchargez vos tickets de paiement</CardDescription>
             </CardHeader>
             <CardContent>
-              <InvoiceManagement />
+              <div className="space-y-4">
+                {filteredTickets.map((ticket) => (
+                  <Card key={ticket.id} className="border">
+                    <CardContent className="pt-6">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            <span className="font-semibold">
+                              {ticket.type_ticket === 'SEANCE' ? 'Séance' : 'Abonnement'} - {ticket.uuid.slice(0, 8)}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            <div>Type: {ticket.type_ticket}</div>
+                            <div>Montant: {ticket.paiement.montant.toLocaleString()} FCFA</div>
+                            <div>Date: {new Date(ticket.date_generation).toLocaleString("fr-FR")}</div>
+                            <div>Mode: {ticket.paiement.mode_paiement}</div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          {ticket.paiement.status === "EN_ATTENTE" && ticket.fichier_pdf_url && (
+                            <a href={ticket.fichier_pdf_url} target="_blank" rel="noopener noreferrer">
+                              <Button variant="outline" size="sm">
+                                <Download className="h-4 w-4 mr-1" />
+                                Télécharger le Ticket
+                              </Button>
+                            </a>
+                          )}
+                          {ticket.paiement.status === "PAYE" && ticket.fichier_pdf_url && (
+                            <a href={ticket.fichier_pdf_url} target="_blank" rel="noopener noreferrer">
+                              <Button variant="outline" size="sm">
+                                <Download className="h-4 w-4 mr-1" />
+                                Télécharger la Facture
+                              </Button>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {filteredTickets.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">Aucun ticket ou facture disponible</div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

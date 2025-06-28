@@ -10,6 +10,8 @@ import { PresenceManagement } from "./presence-management"
 import { ReservationManagement } from "./reservation-management"
 import { AbonnementManagement } from "./abonnement-management"
 import { ChargeManagement } from "./charge-management"
+import { PaymentManagement } from "./payment-management"
+import { AbonnementClientManagement } from "./abonnement-client-management"
 
 interface EmployeeDashboardProps {
   user: User
@@ -21,6 +23,7 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
     todayReservations: 0,
     totalSeances: 0,
     myPresenceToday: false,
+    paiementsEnAttente: 0,
   })
   const [loading, setLoading] = useState(true)
 
@@ -30,10 +33,11 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
 
   const loadEmployeeData = async () => {
     try {
-      const [reservationsData, seancesData, presencesData] = await Promise.all([
+      const [reservationsData, seancesData, presencesData, paiementsData] = await Promise.all([
         apiClient.getReservations(),
         apiClient.getSeances(),
         apiClient.getPresences(),
+        apiClient.getPaiements(),
       ])
 
       const today = new Date().toISOString().split("T")[0]
@@ -47,11 +51,14 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
           (p: any) => p.date === today && p.employe === `${user.prenom} ${user.nom}` && p.present,
         ) || false
 
+      const paiementsEnAttente = paiementsData.results?.filter((p: any) => p.status === "EN_ATTENTE").length || 0
+
       setStats({
         totalReservations: reservationsData.results?.length || 0,
         todayReservations,
         totalSeances: seancesData.results?.length || 0,
         myPresenceToday,
+        paiementsEnAttente,
       })
     } catch (error) {
       console.error("Erreur lors du chargement des données:", error)
@@ -77,7 +84,7 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
             Bonjour, {user.prenom} {user.nom}!
           </CardTitle>
           <CardDescription className="text-green-100">
-            Tableau de bord employé - Gérez les séances et réservations
+            Tableau de bord employé - Gérez les paiements, séances et réservations
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -95,7 +102,7 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Réservations Totales</CardTitle>
@@ -137,16 +144,27 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Paiements en Attente</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{stats.paiementsEnAttente}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Management Tabs */}
       <Tabs defaultValue="seances" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="seances">Séances</TabsTrigger>
-          <TabsTrigger value="reservations">Réservations</TabsTrigger>
-          <TabsTrigger value="presence">Ma Présence</TabsTrigger>
-          <TabsTrigger value="abonnements">Abonnements</TabsTrigger>
-          <TabsTrigger value="charges">Charges</TabsTrigger>
+        <TabsList className="flex w-full">
+          <TabsTrigger className="flex-1" value="seances">Séances</TabsTrigger>
+          <TabsTrigger className="flex-1" value="reservations">Réservations</TabsTrigger>
+          <TabsTrigger className="flex-1" value="presence">Ma Présence</TabsTrigger>
+          <TabsTrigger className="flex-1" value="abonnements">Abonnements</TabsTrigger>
+          <TabsTrigger className="flex-1" value="abonnement-client">Abonnement client</TabsTrigger>
+          <TabsTrigger className="flex-1" value="charges">Charges</TabsTrigger>
         </TabsList>
 
         <TabsContent value="seances">
@@ -163,6 +181,10 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
 
         <TabsContent value="abonnements">
           <AbonnementManagement />
+        </TabsContent>
+
+        <TabsContent value="abonnement-client">
+          <AbonnementClientManagement />
         </TabsContent>
 
         <TabsContent value="charges">

@@ -112,8 +112,8 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
   }
 
   const handleDeleteCharge = async (id: number) => {
-    try {
-      await apiClient.deleteCharge(id)
+      try {
+        await apiClient.deleteCharge(id)
       setCharges(prev => {
         const newList = prev.filter(c => c.id !== id)
         console.log('Liste charges après suppression:', newList)
@@ -124,7 +124,7 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
         description: "La charge a été supprimée.",
         duration: 5000,
       })
-    } catch (error) {
+      } catch (error) {
       toast({
         title: "Erreur",
         description: "La suppression a échoué.",
@@ -190,65 +190,65 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
               <Button variant="outline" onClick={loadCharges} title="Actualiser la liste">
                 <RotateCcw className="h-4 w-4" />
               </Button>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => resetForm()}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nouvelle charge
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Enregistrer une nouvelle charge</DialogTitle>
-                    <DialogDescription>Ajoutez une nouvelle dépense à votre comptabilité</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="titre">Titre de la charge</Label>
-                      <Input
-                        id="titre"
-                        value={formData.titre}
-                        onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
-                        placeholder="Ex: Facture d'électricité"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="montant">Montant (FCFA)</Label>
-                      <Input
-                        id="montant"
-                        type="number"
-                        value={formData.montant}
-                        onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
-                        placeholder="50000"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="date">Date</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        value={formData.date}
-                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        placeholder="Détails de la charge..."
-                      />
-                    </div>
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => resetForm()}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nouvelle charge
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Enregistrer une nouvelle charge</DialogTitle>
+                  <DialogDescription>Ajoutez une nouvelle dépense à votre comptabilité</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="titre">Titre de la charge</Label>
+                    <Input
+                      id="titre"
+                      value={formData.titre}
+                      onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
+                      placeholder="Ex: Facture d'électricité"
+                    />
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                      Annuler
-                    </Button>
-                    <Button onClick={handleCreateCharge}>Enregistrer</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  <div className="space-y-2">
+                    <Label htmlFor="montant">Montant (FCFA)</Label>
+                    <Input
+                      id="montant"
+                      type="number"
+                      value={formData.montant}
+                      onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
+                      placeholder="50000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Date</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Détails de la charge..."
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                    Annuler
+                  </Button>
+                  <Button onClick={handleCreateCharge}>Enregistrer</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             </div>
           </div>
         </CardHeader>
