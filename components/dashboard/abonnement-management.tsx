@@ -56,11 +56,13 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
 
   const loadAbonnements = async () => {
     try {
-      const response = await apiClient.getAbonnements()
+      const response = await apiClient.getAbonnements() as { results?: Abonnement[] } | Abonnement[]
       console.log("API abonnements", response)
-      setAbonnements([...(response.results || response)])
+      const abonnements = Array.isArray(response) ? response : response.results || []
+      setAbonnements(abonnements)
     } catch (error) {
       console.error("Erreur lors du chargement des abonnements:", error)
+      setAbonnements([])
     } finally {
       setLoading(false)
     }
@@ -121,25 +123,29 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
   }
 
   const handleDeleteAbonnement = async (id: number) => {
-      try {
-        await apiClient.deleteAbonnement(id)
-      setAbonnements(prev => {
-        const newList = prev.filter(a => a.id !== id)
-        console.log('Liste abonnements après suppression:', newList)
-        return newList
-      })
-      toast({
-        title: "Suppression réussie",
-        description: "L'abonnement a été supprimé.",
-        duration: 5000,
-      })
-      } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "La suppression a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
+    try {
+      const result = await apiClient.deleteAbonnement(id);
+      
+      if (result && result.success !== false) {
+        // Mettre à jour la liste locale après la suppression
+        setAbonnements(prev => prev.filter(a => a.id !== id));
+        // Appeler la fonction de rechargement si fournie
+        if (onReload) onReload();
+        
+        // Afficher un message de succès
+        toast({
+          title: "Succès",
+          description: "L'abonnement a été supprimé avec succès.",
+          duration: 3000,
+        });
+        
+        return { success: true };
+      } else {
+        throw new Error("Échec de la suppression de l'abonnement");
+      }
+    } catch (error) {
+      console.error('Erreur lors de la suppression de l\'abonnement:', error);
+      throw error; // Propage l'erreur pour que ConfirmDeleteButton puisse l'afficher
     }
   }
 
@@ -170,9 +176,10 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
     setSelectedAbonnementId(abonnementId)
     setIsClientsDialogOpen(true)
     try {
-      const response = await apiClient.getClientsAbonnes(abonnementId)
-      setClientsAbonnes(response)
+      const response = await apiClient.getClientsAbonnes(abonnementId) as any[]
+      setClientsAbonnes(response || [])
     } catch (error) {
+      console.error("Erreur lors du chargement des clients abonnés:", error)
       setClientsAbonnes([])
     }
   }
@@ -186,7 +193,7 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>Gestion des Abonnements</CardTitle>
+            <CardTitle>Type d'abonnements</CardTitle>
             <CardDescription>Créez et gérez les différents types d'abonnements</CardDescription>
           </div>
           <div className="flex gap-2">
@@ -295,11 +302,14 @@ export function AbonnementManagement({ onReload }: { onReload?: () => void }) {
                     <Button variant="outline" size="sm" onClick={() => openEditDialog(abonnement)}>
                       <Edit className="h-4 w-4" />
                     </Button>
-                    <Button variant="outline" size="sm">
-                      <ConfirmDeleteButton onDelete={() => handleDeleteAbonnement(abonnement.id)}>
-                        <span className="flex items-center"><Trash2 className="h-4 w-4" /></span>
-                      </ConfirmDeleteButton>
-                    </Button>
+                    <ConfirmDeleteButton onDelete={async () => {
+                      await handleDeleteAbonnement(abonnement.id);
+                      return Promise.resolve();
+                    }}>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </ConfirmDeleteButton>
                     <Button variant="outline" size="sm" onClick={() => handleShowClients(abonnement.id)}>
                       <Users className="h-4 w-4" />
                       Voir les clients

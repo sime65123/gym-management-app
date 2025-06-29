@@ -21,6 +21,11 @@ interface PresenceRapport {
   date_jour: string
 }
 
+interface ApiResponse {
+  results?: PresenceRapport[]
+  [key: string]: any
+}
+
 export function RapportPresence() {
   const [presences, setPresences] = useState<PresenceRapport[]>([])
   const [loading, setLoading] = useState(true)
@@ -31,8 +36,14 @@ export function RapportPresence() {
 
   const loadRapportJournalier = async () => {
     try {
-      const response = await apiClient.getRapportJournalier()
-      setPresences(response.results || response)
+      const response = await apiClient.getRapportJournalier() as ApiResponse | PresenceRapport[]
+      if (Array.isArray(response)) {
+        setPresences(response)
+      } else if (response && 'results' in response) {
+        setPresences(response.results || [])
+      } else {
+        setPresences([])
+      }
     } catch (error) {
       console.error("Erreur lors du chargement du rapport:", error)
     } finally {

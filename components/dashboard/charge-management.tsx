@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Trash2, DollarSign, Calendar, RotateCcw } from "lucide-react"
+import { Plus, Eye, Calendar, RotateCcw } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
@@ -33,7 +33,7 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
   const [charges, setCharges] = useState<Charge[]>([])
   const [loading, setLoading] = useState(true)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [selectedCharge, setSelectedCharge] = useState<Charge | null>(null)
   const [formData, setFormData] = useState({
     titre: "",
@@ -49,11 +49,23 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
 
   const loadCharges = async () => {
     try {
-      const response = await apiClient.getCharges()
+      const response = await apiClient.getCharges() as { results?: Charge[] } | Charge[]
       console.log("API charges", response)
-      setCharges([...(response.results || response)])
+      
+      // Vérifier si la réponse est un objet avec une propriété results
+      if (response && typeof response === 'object' && 'results' in response) {
+        setCharges(Array.isArray(response.results) ? response.results : [])
+      } 
+      // Si c'est directement un tableau
+      else if (Array.isArray(response)) {
+        setCharges(response)
+      } else {
+        console.error("Format de réponse inattendu:", response)
+        setCharges([])
+      }
     } catch (error) {
       console.error("Erreur lors du chargement des charges:", error)
+      setCharges([])
     } finally {
       setLoading(false)
     }
@@ -84,55 +96,9 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
     }
   }
 
-  const handleUpdateCharge = async () => {
-    if (!selectedCharge) return
 
-    try {
-      const data = {
-        ...formData,
-        montant: Number.parseFloat(formData.montant),
-      }
-      await apiClient.updateCharge(selectedCharge.id, data)
-      setIsEditDialogOpen(false)
-      resetForm()
-      loadCharges()
-      toast({
-        title: "Modification réussie",
-        description: "La charge a été modifiée.",
-        duration: 5000,
-      })
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "La modification a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }
 
-  const handleDeleteCharge = async (id: number) => {
-      try {
-        await apiClient.deleteCharge(id)
-      setCharges(prev => {
-        const newList = prev.filter(c => c.id !== id)
-        console.log('Liste charges après suppression:', newList)
-        return newList
-      })
-      toast({
-        title: "Suppression réussie",
-        description: "La charge a été supprimée.",
-        duration: 5000,
-      })
-      } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "La suppression a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }
+
 
   const resetForm = () => {
     setFormData({
@@ -144,18 +110,17 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
     setSelectedCharge(null)
   }
 
-  const openEditDialog = (charge: Charge) => {
+  const openViewDialog = (charge: Charge) => {
     setSelectedCharge(charge)
-    setFormData({
-      titre: charge.titre,
-      montant: charge.montant.toString(),
-      date: charge.date,
-      description: charge.description,
-    })
-    setIsEditDialogOpen(true)
+    setViewDialogOpen(true)
   }
 
-  const totalCharges = charges.reduce((sum, charge) => sum + charge.montant, 0)
+  // Calcul du total des charges en additionnant tous les montants
+  const totalCharges = charges.reduce((sum, charge) => {
+    // S'assurer que le montant est bien un nombre
+    const montant = Number(charge.montant) || 0
+    return sum + montant
+  }, 0)
 
   if (loading) {
     return <div className="flex justify-center p-8">Chargement...</div>
@@ -167,7 +132,7 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
       <Card className="bg-gradient-to-r from-red-500 to-pink-600 text-white">
         <CardHeader>
           <CardTitle className="flex items-center">
-            <DollarSign className="h-6 w-6 mr-2" />
+            <span className="mr-2">💰</span>
             Total des Charges
           </CardTitle>
         </CardHeader>
@@ -260,18 +225,15 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
                 <TableHead>Montant</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Actions</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {charges.map((charge) => (
                 <TableRow key={charge.id}>
                   <TableCell className="font-medium">{charge.titre}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center text-red-600 font-semibold">
-                      <DollarSign className="h-4 w-4 mr-1" />
-                      {charge.montant.toLocaleString()} FCFA
-                    </div>
+                  <TableCell className="text-red-600 font-semibold">
+                    {charge.montant.toLocaleString()} FCFA
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center text-sm">
@@ -280,17 +242,16 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
                     </div>
                   </TableCell>
                   <TableCell className="max-w-xs truncate">{charge.description}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEditDialog(charge)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <ConfirmDeleteButton onDelete={() => handleDeleteCharge(charge.id)}>
-                          <span className="flex items-center"><Trash2 className="h-4 w-4" /></span>
-                        </ConfirmDeleteButton>
-                      </Button>
-                    </div>
+                  <TableCell className="text-right">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => openViewDialog(charge)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Voir
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -299,54 +260,45 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
 
           {charges.length === 0 && <div className="text-center py-8 text-gray-500">Aucune charge enregistrée</div>}
 
-          {/* Edit Dialog */}
-          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          {/* View Dialog */}
+          <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Modifier la charge</DialogTitle>
-                <DialogDescription>Modifiez les informations de la charge</DialogDescription>
+                <DialogTitle>Détails de la charge</DialogTitle>
+                <DialogDescription>Informations complètes sur la charge</DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-titre">Titre de la charge</Label>
-                  <Input
-                    id="edit-titre"
-                    value={formData.titre}
-                    onChange={(e) => setFormData({ ...formData, titre: e.target.value })}
-                  />
+              {selectedCharge && (
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Titre</h4>
+                    <p className="text-sm">{selectedCharge.titre}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Montant</h4>
+                    <p className="text-lg font-semibold text-red-600">
+                      {selectedCharge.montant.toLocaleString('fr-FR')} FCFA
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Date</h4>
+                    <p className="text-sm">
+                      {new Date(selectedCharge.date).toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Description</h4>
+                    <p className="text-sm whitespace-pre-line">
+                      {selectedCharge.description || 'Aucune description fournie'}
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-montant">Montant (FCFA)</Label>
-                  <Input
-                    id="edit-montant"
-                    type="number"
-                    value={formData.montant}
-                    onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-date">Date</Label>
-                  <Input
-                    id="edit-date"
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-description">Description</Label>
-                  <Textarea
-                    id="edit-description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  />
-                </div>
-              </div>
+              )}
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                  Annuler
-                </Button>
-                <Button onClick={handleUpdateCharge}>Sauvegarder</Button>
+                <Button onClick={() => setViewDialogOpen(false)}>Fermer</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

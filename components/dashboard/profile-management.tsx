@@ -12,9 +12,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { User, Mail, Phone, Lock, CheckCircle, AlertCircle } from "lucide-react"
 import { useAuth } from "@/components/auth/auth-context"
 import { apiClient } from "@/lib/api"
+import { useToast } from "@/components/ui/use-toast"
 
 export function ProfileManagement() {
   const { user, refreshUser } = useAuth()
+  const { toast } = useToast()
   console.log('USER PROFILE:', user)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState("")
@@ -36,6 +38,19 @@ export function ProfileManagement() {
     setSuccess("")
 
     try {
+      // Vérifier que les mots de passe correspondent si un nouveau est fourni
+      if (formData.newPassword) {
+        if (formData.newPassword !== formData.confirmPassword) {
+          setError("Les nouveaux mots de passe ne correspondent pas")
+          return
+        }
+        if (formData.newPassword.length < 8) {
+          setError("Le mot de passe doit contenir au moins 8 caractères")
+          return
+        }
+      }
+
+      // Préparer les données de mise à jour
       const updateData: any = {
         nom: formData.nom,
         prenom: formData.prenom,
@@ -43,28 +58,80 @@ export function ProfileManagement() {
         telephone: formData.telephone,
       }
 
-      // Si un nouveau mot de passe est fourni
+      // Si un nouveau mot de passe est fourni, on l'ajoute
       if (formData.newPassword) {
-        if (formData.newPassword !== formData.confirmPassword) {
-          setError("Les mots de passe ne correspondent pas")
-          return
+        updateData.newPassword = formData.newPassword
+        // Si on change de mot de passe, on doit fournir l'ancien
+        if (formData.currentPassword) {
+          updateData.currentPassword = formData.currentPassword
         }
-        updateData.password = formData.newPassword
       }
 
-      await apiClient.updateProfile(updateData)
+      console.log('Données envoyées pour la mise à jour:', updateData)
+      
+      // Appel à l'API pour mettre à jour le profil
+      const updatedUser = await apiClient.updateProfile(updateData)
+      console.log('Profil mis à jour avec succès:', updatedUser)
+      
+      // Mettre à jour l'utilisateur dans le contexte d'authentification
       await refreshUser()
-      setSuccess("Profil mis à jour avec succès")
-
-      // Reset password fields
+      
+      // Mettre à jour le formulaire avec les nouvelles données
       setFormData({
         ...formData,
+        nom: updatedUser.nom || formData.nom,
+        prenom: updatedUser.prenom || formData.prenom,
+        email: updatedUser.email || formData.email,
+        telephone: updatedUser.telephone || formData.telephone,
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       })
+      
+      // Afficher le toast de succès
+      toast({
+        title: "Profil mis à jour",
+        description: "Vos informations ont été mises à jour avec succès.",
+        duration: 5000,
+      })
+      
+      // Mettre à jour le message de succès local
+      setSuccess("Profil mis à jour avec succès")
+      
+      // Cacher le message de succès après 5 secondes
+      setTimeout(() => setSuccess(""), 5000)
+      
     } catch (error: any) {
-      setError(error.message || "Erreur lors de la mise à jour")
+      console.error('Erreur lors de la mise à jour du profil:', error)
+      
+      // Gestion des erreurs plus détaillée
+      let errorMessage = "Erreur lors de la mise à jour du profil"
+      
+      if (error.message) {
+        errorMessage = error.message
+      } else if (error.response) {
+        // Si c'est une réponse d'erreur de l'API
+        const apiError = error.response.data
+        if (apiError.detail) {
+          errorMessage = apiError.detail
+        } else if (apiError.non_field_errors) {
+          errorMessage = apiError.non_field_errors.join(", ")
+        } else {
+          // Essayer d'extraire les erreurs de validation
+          const validationErrors = Object.values(apiError)
+            .flat()
+            .join(", ")
+          if (validationErrors) {
+            errorMessage = validationErrors
+          }
+        }
+      }
+      
+      setError(errorMessage)
+      
+      // Cacher le message d'erreur après 10 secondes
+      setTimeout(() => setError(""), 10000)
+      
     } finally {
       setLoading(false)
     }

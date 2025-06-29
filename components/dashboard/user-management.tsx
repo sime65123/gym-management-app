@@ -22,6 +22,17 @@ import { apiClient, type User } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
 
+type UserRole = "ADMIN" | "EMPLOYE" | "CLIENT"
+
+interface FormData {
+  email: string
+  nom: string
+  prenom: string
+  telephone: string
+  role: UserRole
+  password?: string
+}
+
 export function UserManagement({ onReload }: { onReload?: () => void }) {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,12 +41,12 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     email: "",
     nom: "",
     prenom: "",
     telephone: "",
-    role: "CLIENT" as "ADMIN" | "EMPLOYE" | "CLIENT",
+    role: "CLIENT",
     password: "",
   })
   const { toast } = useToast()
@@ -46,11 +57,20 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
 
   const loadUsers = async () => {
     try {
+      setLoading(true)
       const response = await apiClient.getUsers()
       console.log("API users", response)
-      setUsers([...(response.results || response)])
+      // Vérifier si la réponse contient une propriété 'results' (pagination) ou est directement le tableau
+      const usersArray = (response as any)?.results || (Array.isArray(response) ? response : [])
+      setUsers(usersArray)
     } catch (error) {
       console.error("Erreur lors du chargement des utilisateurs:", error)
+      setUsers([])
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger la liste des utilisateurs",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -58,21 +78,42 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
 
   const handleCreateUser = async () => {
     try {
-      await apiClient.createUser(formData)
+      console.log("Tentative de création d'utilisateur avec les données:", formData)
+      const response = await apiClient.createUser(formData)
+      console.log("Réponse de l'API:", response)
+      
       setIsCreateDialogOpen(false)
       resetForm()
-      loadUsers()
+      await loadUsers()
+      
       toast({
         title: "Ajout réussi",
-        description: "L'utilisateur a été ajouté.",
+        description: "L'utilisateur a été ajouté avec succès.",
         duration: 5000,
       })
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Erreur lors de la création de l'utilisateur:", error)
+      
+      let errorMessage = "L'ajout a échoué. Veuillez réessayer."
+      
+      if (error.response) {
+        // Si l'erreur vient de l'API avec une réponse
+        try {
+          const errorData = await error.response.json()
+          errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData)
+        } catch (e) {
+          // Si la réponse n'est pas du JSON
+          errorMessage = `Erreur ${error.response.status}: ${error.response.statusText}`
+        }
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       toast({
         title: "Erreur",
-        description: "L'ajout a échoué.",
+        description: errorMessage,
         variant: "destructive",
-        duration: 5000,
+        duration: 10000, // Message plus long pour permettre la lecture
       })
     }
   }
@@ -104,26 +145,14 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
     }
   }
 
-  const handleDeleteUser = async (id: number) => {
-      try {
-        await apiClient.deleteUser(id)
-      setUsers(prev => {
-        const newList = prev.filter(u => u.id !== id)
-        console.log('Liste users après suppression:', newList)
-        return newList
-      })
-      toast({
-        title: "Suppression réussie",
-        description: "L'utilisateur a été supprimé.",
-        duration: 5000,
-      })
-      } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "La suppression a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
+  const handleDeleteUser = async (id: number): Promise<void> => {
+    try {
+      await apiClient.deleteUser(id)
+      // Mise à jour de l'état local
+      setUsers(prev => prev.filter(u => u.id !== id))
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error)
+      throw error
     }
   }
 
@@ -152,11 +181,11 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
     setIsEditDialogOpen(true)
   }
 
-  const filteredUsers = users.filter((user) => {
-    const matchesSearch =
-      user.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = users.filter((user: User) => {
+    const searchLower = searchTerm.toLowerCase()
+    const matchesSearch = user.nom?.toLowerCase().includes(searchLower) ||
+      user.prenom?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower)
     const matchesRole = selectedRole === "all" || user.role === selectedRole
     return matchesSearch && matchesRole
   })
@@ -242,10 +271,10 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
                   <Label htmlFor="role">Rôle</Label>
                   <Select
                     value={formData.role}
-                    onValueChange={(value: any) => setFormData({ ...formData, role: value })}
+                    onValueChange={(value: UserRole) => setFormData(prev => ({ ...prev, role: value }))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Sélectionnez un rôle" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="CLIENT">Client</SelectItem>
@@ -310,7 +339,6 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
               <TableHead>Email</TableHead>
               <TableHead>Téléphone</TableHead>
               <TableHead>Rôle</TableHead>
-              <TableHead>Solde</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -325,17 +353,13 @@ export function UserManagement({ onReload }: { onReload?: () => void }) {
                 <TableCell>
                   <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
                 </TableCell>
-                <TableCell>{user.solde?.toLocaleString() || 0} FCFA</TableCell>
                 <TableCell>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openEditDialog(user)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <ConfirmDeleteButton onDelete={() => handleDeleteUser(user.id)}>
-                        <span className="flex items-center"><Trash2 className="h-4 w-4" /></span>
-                      </ConfirmDeleteButton>
-                    </Button>
+                  <div className="flex justify-center">
+                    <ConfirmDeleteButton onDelete={() => handleDeleteUser(user.id)}>
+                      <span className="flex items-center text-red-600 hover:text-red-800">
+                        <Trash2 className="h-5 w-5" />
+                      </span>
+                    </ConfirmDeleteButton>
                   </div>
                 </TableCell>
               </TableRow>

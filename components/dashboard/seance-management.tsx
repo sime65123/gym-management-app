@@ -1,26 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import * as React from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Trash2, Calendar, Users, RotateCcw, Download } from "lucide-react"
+import { RotateCcw, Ticket, User, Calendar, Clock, X } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
+import { format } from "date-fns"
+import { fr } from "date-fns/locale"
 
 interface Seance {
   id: number
@@ -38,377 +29,327 @@ interface Coach {
   prenom: string
   categorie: string
 }
-
 export function SeanceManagement({ onReload }: { onReload?: () => void }) {
   const [seances, setSeances] = useState<Seance[]>([])
   const [coachs, setCoachs] = useState<Coach[]>([])
   const [loading, setLoading] = useState(true)
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [selectedSeance, setSelectedSeance] = useState<Seance | null>(null)
-  const [formData, setFormData] = useState({
-    client_nom: "",
-    client_prenom: "",
-    date_jour: "",
-    nombre_heures: 1,
-    montant_paye: 5000,
-  })
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isAdmin, setIsAdmin] = useState(false)
+  
   const { toast } = useToast()
 
+  // Vérifier si l'utilisateur est admin
   useEffect(() => {
-    loadSeances()
-    loadCoachs()
-  }, [])
+    const userRole = localStorage.getItem("user_role");
+    setIsAdmin(userRole === "admin");
+  }, []);
 
-  const loadSeances = async () => {
+  // Charger les séances depuis l'API
+  const loadSeances = useCallback(async () => {
     try {
+      setLoading(true)
       const response = await apiClient.getSeances()
-      console.log("API seances response:", response)
-      console.log("API seances results:", response.results || response)
       
-      // Log des tickets pour chaque séance
-      const seances = response.results || response
-      seances.forEach((seance: any) => {
-        console.log(`Séance ${seance.id}:`, {
-          client: `${seance.client_prenom} ${seance.client_nom}`,
-          ticket_url: seance.ticket_url,
-          has_ticket: !!seance.ticket_url
-        })
-      })
-      
-      setSeances([...seances])
+      // Vérifier si la réponse est un tableau
+      if (Array.isArray(response)) {
+        setSeances(response)
+      } 
+      // Vérifier si c'est un objet avec une propriété results qui est un tableau
+      else if (response && typeof response === 'object' && response !== null && 'results' in response && Array.isArray(response.results)) {
+        setSeances(response.results)
+      } 
+      // Gestion des autres cas
+      else {
+        console.error("Format de réponse inattendu:", response)
+        setSeances([])
+      }
     } catch (error) {
       console.error("Erreur lors du chargement des séances:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les séances. Veuillez réessayer.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
-  const loadCoachs = async () => {
+  // Charger les coachs disponibles
+  const loadCoachs = useCallback(async () => {
     try {
-      const response = await apiClient.getCoachs()
-      setCoachs(response)
+      const response = await apiClient.getPersonnel()
+      // Vérifier si la réponse contient une propriété results
+      const coachsData = Array.isArray(response) 
+        ? response 
+        : (response && typeof response === 'object' && 'results' in response && Array.isArray(response.results))
+          ? response.results 
+          : [];
+      setCoachs(coachsData.filter((coach: any) => coach.categorie === "COACH"))
     } catch (error) {
       console.error("Erreur lors du chargement des coachs:", error)
-      setCoachs([])
     }
-  }
+  }, [])
 
-  const handleCreateSeance = async () => {
-    try {
-      const data = {
-        client_nom: formData.client_nom,
-        client_prenom: formData.client_prenom,
-        date_jour: formData.date_jour ? formData.date_jour.slice(0, 10) : '',
-        nombre_heures: Number(formData.nombre_heures),
-        montant_paye: Number(formData.montant_paye),
-      }
-      await apiClient.createSeanceDirect(data)
-      setIsCreateDialogOpen(false)
-      resetForm()
-      loadSeances()
-      toast({
-        title: "Ajout réussi",
-        description: "La séance a été ajoutée avec un ticket généré.",
-        duration: 5000,
-      })
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "L'ajout a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }
+  // Charger les données au montage du composant
+  useEffect(() => {
+    loadSeances()
+    loadCoachs()
+  }, [loadSeances, loadCoachs])
 
-  const handleUpdateSeance = async () => {
-    if (!selectedSeance) return
+  // Ouvrir le ticket PDF dans un nouvel onglet
+  const handleViewTicket = (ticketUrl: string) => {
+    window.open(ticketUrl, '_blank');
+  };
 
-    try {
-      const data = {
-        client_nom: formData.client_nom,
-        client_prenom: formData.client_prenom,
-        date_jour: formData.date_jour ? formData.date_jour.slice(0, 10) : '',
-        nombre_heures: Number(formData.nombre_heures),
-        montant_paye: Number(formData.montant_paye),
-      }
-      console.log('Données envoyées pour modification:', data)
-      await apiClient.updateSeance(selectedSeance.id, data)
-      setIsEditDialogOpen(false)
-      resetForm()
-      loadSeances()
-      toast({
-        title: "Modification réussie",
-        description: "La séance a été modifiée.",
-        duration: 5000,
-      })
-    } catch (error) {
-      console.error('Erreur lors de la modification:', error)
-      toast({
-        title: "Erreur",
-        description: "La modification a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }
-
+  // Gérer la suppression d'une séance
   const handleDeleteSeance = async (id: number) => {
-      try {
-        await apiClient.deleteSeance(id)
-      setSeances(prev => {
-        const newList = prev.filter(s => s.id !== id)
-        console.log('Liste séances après suppression:', newList)
-        return newList
-      })
+    try {
+      await apiClient.deleteSeance(id)
+      
+      // Recharger la liste des séances
+      await loadSeances()
+      
+      // Afficher un message de succès
       toast({
-        title: "Suppression réussie",
-        description: "La séance a été supprimée.",
-        duration: 5000,
+        title: "Succès",
+        description: "La séance a été supprimée avec succès.",
       })
-      } catch (error) {
+      
+      // Appeler la fonction de rechargement parent si elle existe
+      if (onReload) {
+        onReload()
+      }
+    } catch (error) {
+      console.error("Erreur lors de la suppression de la séance:", error)
+      
       toast({
         title: "Erreur",
-        description: "La suppression a échoué.",
+        description: "La suppression de la séance a échoué. Veuillez réessayer.",
         variant: "destructive",
-        duration: 5000,
       })
     }
   }
 
-  const resetForm = () => {
-    setFormData({
-      client_nom: "",
-      client_prenom: "",
-      date_jour: "",
-      nombre_heures: 1,
-      montant_paye: 5000,
-    })
-    setSelectedSeance(null)
+  // Gérer le téléchargement du ticket
+  const handleDownloadTicket = async (ticketUrl: string, clientName: string) => {
+    try {
+      // Afficher un indicateur de chargement
+      toast({
+        title: "Téléchargement en cours",
+        description: "Préparation du ticket...",
+        duration: 2000,
+      });
+
+      // Vérifier si l'URL est valide
+      if (!ticketUrl) {
+        throw new Error("Aucun ticket disponible pour le téléchargement");
+      }
+
+      // Créer un lien temporaire pour le téléchargement
+      const link = document.createElement('a');
+      
+      // Vérifier si c'est une URL complète ou un chemin relatif
+      const fullUrl = ticketUrl.startsWith('http') 
+        ? ticketUrl 
+        : `${window.location.origin}${ticketUrl.startsWith('/') ? '' : '/'}${ticketUrl}`;
+      
+      // S'assurer que l'URL est absolue
+      const response = await fetch(fullUrl, {
+        method: 'HEAD',
+        cache: 'no-cache',
+      });
+
+      if (!response.ok) {
+        throw new Error("Impossible d'accéder au ticket");
+      }
+
+      // Définir le nom du fichier pour le téléchargement
+      const fileName = `ticket-${clientName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      // Pour les navigateurs modernes, utiliser l'API de téléchargement
+      if ('showSaveFilePicker' in window) {
+        try {
+          const fileResponse = await fetch(fullUrl);
+          const blob = await fileResponse.blob();
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{
+              description: 'Fichier PDF',
+              accept: { 'application/pdf': ['.pdf'] },
+            }],
+          });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          
+          toast({
+            title: "Téléchargement réussi",
+            description: `Le ticket a été enregistré avec succès.`,
+          });
+          return;
+        } catch (saveError) {
+          console.warn("L'API de sélection de fichier n'est pas supportée, utilisation du téléchargement direct", saveError);
+          // Continuer avec la méthode de téléchargement standard
+        }
+      }
+
+      // Méthode de téléchargement standard pour les navigateurs plus anciens
+      link.href = fullUrl;
+      link.download = fileName;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Téléchargement démarré",
+        description: `Le ticket pour ${clientName} est en cours de téléchargement.`,
+      });
+    } catch (error) {
+      console.error("Erreur lors du téléchargement du ticket:", error);
+      
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Le téléchargement du ticket a échoué. Veuillez réessayer.",
+        variant: "destructive",
+      });
+    }
   }
 
-  const openEditDialog = (seance: Seance) => {
-    setSelectedSeance(seance)
-    setFormData({
-      client_nom: seance.client_nom ?? '',
-      client_prenom: seance.client_prenom ?? '',
-      date_jour: seance.date_jour ?? '',
-      nombre_heures: seance.nombre_heures ?? 1,
-      montant_paye: seance.montant_paye ?? 5000,
-    })
-    setIsEditDialogOpen(true)
+
+
+  // Formater la date en français
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      return format(date, 'PPP', { locale: fr })
+    } catch (error) {
+      console.error("Erreur de formatage de date:", error)
+      return dateString
+    }
   }
 
-  if (loading) {
-    return <div className="flex justify-center p-8">Chargement...</div>
-  }
+  // Filtrer les séances en fonction du terme de recherche
+  const filteredSeances = seances.filter(seance => {
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      seance.client_nom.toLowerCase().includes(searchLower) ||
+      seance.client_prenom.toLowerCase().includes(searchLower) ||
+      formatDate(seance.date_jour).toLowerCase().includes(searchLower) ||
+      seance.montant_paye.toString().includes(searchTerm)
+    )
+  })
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <div>
-            <CardTitle>Gestion des Séances</CardTitle>
-            <CardDescription>Planifiez et gérez les séances de sport</CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadSeances} title="Actualiser la liste">
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => resetForm()}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nouvelle séance
-              </Button>
-            </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Créer une nouvelle séance</DialogTitle>
-                <DialogDescription>Enregistrez une séance pour un client venu sur place</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="client_nom">Nom</Label>
-                  <Input
-                    id="client_nom"
-                    value={formData.client_nom ?? ''}
-                    onChange={(e) => setFormData({ ...formData, client_nom: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="client_prenom">Prénom</Label>
-                  <Input
-                    id="client_prenom"
-                    value={formData.client_prenom ?? ''}
-                    onChange={(e) => setFormData({ ...formData, client_prenom: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date_jour">Date du jour</Label>
-                  <Input
-                    id="date_jour"
-                    type="date"
-                    value={formData.date_jour ?? ''}
-                    onChange={(e) => setFormData({ ...formData, date_jour: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nombre_heures">Nombre d'heures payées</Label>
-                  <Input
-                    id="nombre_heures"
-                    type="number"
-                    min={1}
-                    value={formData.nombre_heures ?? 0}
-                    onChange={(e) => {
-                      const n = Number(e.target.value)
-                      setFormData({
-                        ...formData,
-                        nombre_heures: n,
-                        montant_paye: n * 5000,
-                      })
-                    }}
-                    placeholder="1"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="montant_paye">Montant payé</Label>
-                  <Input
-                    id="montant_paye"
-                    type="number"
-                    min={5000}
-                    value={formData.montant_paye ?? 0}
-                    onChange={(e) => setFormData({ ...formData, montant_paye: Number(e.target.value) })}
-                    placeholder="5000"
-                  />
-                  <p className="text-xs text-gray-500">Tarif : 5000 FCFA/heure</p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Annuler
-                </Button>
-                <Button onClick={handleCreateSeance} disabled={!formData.client_nom || !formData.client_prenom || !formData.nombre_heures || !formData.montant_paye}>
-                  Créer
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          </div>
+    <div className="space-y-6">
+      <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Liste des Séances</h2>
+          <p className="text-sm text-muted-foreground">
+            Seances payees par les clients
+          </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nom du client</TableHead>
-              <TableHead>Prénom du client</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Nombre d'heures</TableHead>
-              <TableHead>Montant payé</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {seances.map((seance) => (
-              <TableRow key={seance.id}>
-                <TableCell>{seance.client_nom || '-'}</TableCell>
-                <TableCell>{seance.client_prenom || '-'}</TableCell>
-                <TableCell>{seance.date_jour ? new Date(seance.date_jour).toLocaleDateString('fr-FR') : '-'}</TableCell>
-                <TableCell>{seance.nombre_heures ?? '-'}</TableCell>
-                <TableCell>{seance.montant_paye ?? '-'} FCFA</TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openEditDialog(seance)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <ConfirmDeleteButton onDelete={() => handleDeleteSeance(seance.id)}>
-                        <span className="flex items-center"><Trash2 className="h-4 w-4" /></span>
-                      </ConfirmDeleteButton>
-                    </Button>
-                    {seance.ticket_url && (
-                      <a href={seance.ticket_url} target="_blank" rel="noopener noreferrer">
-                        <Button variant="outline" size="sm">
-                          <Download className="h-4 w-4 mr-1" />
-                          Ticket
-                        </Button>
-                      </a>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="flex items-center space-x-2">
+          <div className="relative">
+            <Input
+              placeholder="Rechercher par nom, prénom, date ou montant..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full md:w-64"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <Button variant="outline" size="icon" onClick={loadSeances} title="Actualiser">
+            <RotateCcw className="h-4 w-4" />
+          </Button>
 
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Modifier la séance</DialogTitle>
-              <DialogDescription>Modifiez les informations de la séance</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-client_nom">Nom</Label>
-                <Input
-                  id="edit-client_nom"
-                  value={formData.client_nom ?? ''}
-                  onChange={(e) => setFormData({ ...formData, client_nom: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-client_prenom">Prénom</Label>
-                <Input
-                  id="edit-client_prenom"
-                  value={formData.client_prenom ?? ''}
-                  onChange={(e) => setFormData({ ...formData, client_prenom: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-date_jour">Date du jour</Label>
-                <Input
-                  id="edit-date_jour"
-                  type="date"
-                  value={formData.date_jour ?? ''}
-                  onChange={(e) => setFormData({ ...formData, date_jour: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-nombre_heures">Nombre d'heures payées</Label>
-                <Input
-                  id="edit-nombre_heures"
-                  type="number"
-                  min={1}
-                  value={formData.nombre_heures ?? 0}
-                  onChange={(e) => setFormData({ ...formData, nombre_heures: Number(e.target.value) })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-montant_paye">Montant payé</Label>
-                <Input
-                  id="edit-montant_paye"
-                  type="number"
-                  min={5000}
-                  value={formData.montant_paye ?? 0}
-                  onChange={(e) => setFormData({ ...formData, montant_paye: Number(e.target.value) })}
-                />
-                <p className="text-xs text-gray-500">Tarif : 5000 FCFA/heure</p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button onClick={handleUpdateSeance} disabled={!formData.client_nom || !formData.client_prenom || !formData.nombre_heures || !formData.montant_paye}>
-                Sauvegarder
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Durée</TableHead>
+                <TableHead>Montant</TableHead>
+                {isAdmin && <TableHead>Ticket</TableHead>}
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredSeances.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={isAdmin ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                    {searchTerm 
+                      ? "Aucune séance ne correspond à votre recherche" 
+                      : "Aucune séance trouvée"}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredSeances.map((seance) => (
+                  <TableRow key={seance.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4 text-gray-500" />
+                        <span>{seance.client_prenom} {seance.client_nom}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <span>{formatDate(seance.date_jour)}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-gray-500" />
+                        <span>{seance.nombre_heures} heure{seance.nombre_heures > 1 ? 's' : ''}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{seance.montant_paye.toLocaleString()} FCFA</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        {seance.ticket_url ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewTicket(seance.ticket_url!)}
+                            title="Voir le ticket"
+                          >
+                            <Ticket className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Pas de ticket</span>
+                        )}
+                        <ConfirmDeleteButton
+                          onDelete={() => handleDeleteSeance(seance.id)}
+                          confirmMessage={`Êtes-vous sûr de vouloir supprimer la séance du ${formatDate(seance.date_jour)} avec ${seance.client_prenom} ${seance.client_nom} ?`}
+                        >
+                          <Button variant="ghost" size="icon" title="Supprimer la séance">
+                            <X className="h-4 w-4 text-red-600 hover:text-red-800" />
+                          </Button>
+                        </ConfirmDeleteButton>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

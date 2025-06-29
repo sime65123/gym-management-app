@@ -40,10 +40,11 @@ export function FinancialCharts() {
   const loadReportData = async () => {
     try {
       // Utiliser l'endpoint qui existe réellement dans le backend
-      const response = await apiClient.getFinancialReport()
+      const response = await apiClient.getFinancialReport() as FinancialReportData
       setReportData(response)
     } catch (error) {
       console.error("Erreur lors du chargement du rapport financier:", error)
+      setReportData(null)
     } finally {
       setLoading(false)
     }

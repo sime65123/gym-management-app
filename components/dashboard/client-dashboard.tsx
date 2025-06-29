@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, CreditCard, FileText, Clock, CheckCircle, XCircle, Download } from "lucide-react"
+import { Calendar, CreditCard, FileText, Clock, CheckCircle, XCircle, Download, Ticket, Info } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { apiClient, type User, type Ticket, Reservation as ReservationType } from "@/lib/api"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -40,6 +41,8 @@ export function ClientDashboard({ user }: { user: User }) {
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [loading, setLoading] = useState(true)
   const [isReservationDialogOpen, setIsReservationDialogOpen] = useState(false)
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
+  const [showTicketDialog, setShowTicketDialog] = useState(false)
   const [reservationForm, setReservationForm] = useState({
     date_heure_souhaitee: "",
     nombre_heures: 1,
@@ -140,13 +143,15 @@ export function ClientDashboard({ user }: { user: User }) {
     }
   }
 
-  // Filtrage des données pour n'afficher que celles du client connecté
+  // Filtrage des données pour n'afficher que les réservations payées du client connecté
   const filteredReservations = reservations.filter(r => {
-    // r.client peut être un string (email ou nom complet)
-    if (typeof r.client === 'string') {
-      return r.client === user.email || r.client === `${user.prenom} ${user.nom}`
-    }
-    return false
+    // Vérifier si la réservation appartient au client connecté
+    const isClientReservation = typeof r.client === 'string' 
+      ? (r.client === user.email || r.client === `${user.prenom} ${user.nom}`)
+      : (r.client?.id === user.id || r.client_id === user.id);
+    
+    // Ne retourner que les réservations payées et confirmées
+    return isClientReservation && r.statut === 'CONFIRMEE' && r.paye === true;
   })
   // Les paiements n'ont pas de champ client exploitable côté front, donc on ne filtre pas
   const filteredPaiements = paiements
@@ -182,11 +187,10 @@ export function ClientDashboard({ user }: { user: User }) {
 
       {/* Main Tabs */}
       <Tabs defaultValue="reserver" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="reserver">Réserver une séance</TabsTrigger>
           <TabsTrigger value="abonnements">Abonnements</TabsTrigger>
           <TabsTrigger value="reservations">Mes Réservations</TabsTrigger>
-          <TabsTrigger value="paiements">Mes Paiements</TabsTrigger>
           <TabsTrigger value="tickets">Mes Tickets</TabsTrigger>
         </TabsList>
 
@@ -395,44 +399,6 @@ export function ClientDashboard({ user }: { user: User }) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="paiements">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historique des Paiements</CardTitle>
-              <CardDescription>Consultez vos transactions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {filteredPaiements.map((paiement) => (
-                  <Card key={paiement.id} className="border">
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="h-4 w-4" />
-                            <span className="font-semibold">
-                              {paiement.abonnement?.nom || paiement.seance?.titre || "Paiement"}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-600 space-y-1">
-                            <div>Montant: {paiement.montant.toLocaleString()} FCFA</div>
-                            <div>Date: {new Date(paiement.date_paiement).toLocaleString("fr-FR")}</div>
-                            <div>Mode: {paiement.mode_paiement}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {getStatusBadge(paiement.status)}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                {filteredPaiements.length === 0 && <div className="text-center py-8 text-gray-500">Aucun paiement trouvé</div>}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="tickets">
           <Card>
             <CardHeader>
@@ -447,16 +413,26 @@ export function ClientDashboard({ user }: { user: User }) {
                       <div className="flex justify-between items-start">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4" />
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setSelectedTicket(ticket);
+                                setShowTicketDialog(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 transition-colors"
+                              title="Voir le ticket"
+                            >
+                              <Ticket className="h-5 w-5" />
+                            </button>
                             <span className="font-semibold">
                               {ticket.type_ticket === 'SEANCE' ? 'Séance' : 'Abonnement'} - {ticket.uuid.slice(0, 8)}
                             </span>
                           </div>
                           <div className="text-sm text-gray-600 space-y-1">
                             <div>Type: {ticket.type_ticket}</div>
-                            <div>Montant: {ticket.paiement.montant.toLocaleString()} FCFA</div>
+                            <div>Montant: {ticket.paiement?.montant ? `${ticket.paiement.montant.toLocaleString()} FCFA` : 'Non disponible'}</div>
                             <div>Date: {new Date(ticket.date_generation).toLocaleString("fr-FR")}</div>
-                            <div>Mode: {ticket.paiement.mode_paiement}</div>
+                            <div>Mode: {ticket.paiement?.mode_paiement || 'Non spécifié'}</div>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -489,6 +465,105 @@ export function ClientDashboard({ user }: { user: User }) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialogue d'affichage du ticket */}
+      <Dialog open={showTicketDialog} onOpenChange={setShowTicketDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl mb-4">
+              {selectedTicket?.type_ticket === 'SEANCE' ? 'Ticket de Séance' : 'Ticket d\'Abonnement'}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedTicket && (
+            <div className="border-2 border-blue-200 rounded-lg p-6 bg-white">
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-blue-800">GYM TYPHOON</h2>
+                  <p className="text-sm text-gray-600">123 Rue du Sport, Ville</p>
+                  <p className="text-sm text-gray-600">Tél: +123 456 789</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium">Ticket #{selectedTicket.uuid.slice(0, 8).toUpperCase()}</p>
+                  <p className="text-sm text-gray-600">
+                    {new Date(selectedTicket.date_generation).toLocaleString('fr-FR')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-b border-gray-200 py-4 my-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold">Type</h3>
+                  <span>{selectedTicket.type_ticket === 'SEANCE' ? 'Séance' : 'Abonnement'}</span>
+                </div>
+                {selectedTicket.paiement?.montant && (
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-semibold">Montant</h3>
+                    <span>{selectedTicket.paiement.montant.toLocaleString()} FCFA</span>
+                  </div>
+                )}
+                {selectedTicket.paiement?.mode_paiement && (
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-semibold">Mode de paiement</h3>
+                    <span>
+                      {selectedTicket.paiement.mode_paiement === 'ESPECE' ? 'Espèces' : 
+                       selectedTicket.paiement.mode_paiement === 'CARTE' ? 'Carte bancaire' : 
+                       'Chèque'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold">Client</h3>
+                  <span>{user?.prenom} {user?.nom}</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold">Téléphone</h3>
+                  <span>{user?.telephone || 'Non renseigné'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <h3 className="font-semibold">Statut</h3>
+                  <span className="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                    Non payé
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-4 rounded-lg mt-6">
+                <div className="flex items-center">
+                  <Info className="h-5 w-5 text-blue-600 mr-2" />
+                  <p className="text-sm text-blue-800">
+                    Veuillez vous présenter à l'accueil avec ce ticket pour effectuer le paiement et valider votre réservation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center text-xs text-gray-500">
+                <p>Merci de votre confiance !</p>
+                <p className="mt-1">© {new Date().getFullYear()} GYM TYPHOON - Tous droits réservés</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="sm:justify-between mt-6">
+            <Button 
+              variant="outline"
+              onClick={() => {
+                if (selectedTicket?.fichier_pdf_url) {
+                  window.open(selectedTicket.fichier_pdf_url, '_blank');
+                }
+              }}
+              disabled={!selectedTicket?.fichier_pdf_url}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Télécharger le PDF
+            </Button>
+            <Button 
+              onClick={() => setShowTicketDialog(false)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, RotateCcw } from "lucide-react"
+import { Plus, Edit, Trash2, RotateCcw, X } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
@@ -33,6 +33,7 @@ interface Personnel {
 export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
   const [personnel, setPersonnel] = useState<Personnel[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null)
@@ -50,7 +51,7 @@ export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
 
   const loadPersonnel = async () => {
     try {
-      const response = await apiClient.getPersonnel()
+      const response: any = await apiClient.getPersonnel()
       console.log("API personnel", response)
       setPersonnel([...(response.results || response)])
     } catch (error) {
@@ -62,19 +63,49 @@ export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
 
   const handleCreatePersonnel = async () => {
     try {
-      await apiClient.createPersonnel(formData)
+      if (!formData.nom || !formData.prenom || !formData.date_emploi) {
+        throw new Error("Tous les champs sont obligatoires")
+      }
+
+      const personnelData = {
+        ...formData,
+        date_emploi: formData.date_emploi ? new Date(formData.date_emploi).toISOString().split('T')[0] : ''
+      }
+      
+      const response = await apiClient.createPersonnel(personnelData)
+      console.log("Réponse de l'API:", response)
+      
       setIsCreateDialogOpen(false)
       resetForm()
       loadPersonnel()
+      
       toast({
         title: "Ajout réussi",
-        description: "Le membre du personnel a été ajouté.",
+        description: "Le membre du personnel a été ajouté avec succès.",
         duration: 5000,
       })
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Erreur lors de l'ajout du personnel:", error)
+      
+      let errorMessage = "L'ajout a échoué."
+      
+      if (error.errors) {
+        const errorMessages = Object.entries(error.errors)
+          .map(([field, messages]) => {
+            const fieldName = field === 'date_emploi' ? 'Date d\'emploi' : 
+                            field === 'prenom' ? 'Prénom' : 
+                            field === 'nom' ? 'Nom' : field;
+            return `${fieldName}: ${Array.isArray(messages) ? messages.join(', ') : messages}`;
+          })
+          .join('\n');
+        errorMessage = `Erreurs de validation :\n${errorMessages}`;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "L'ajout a échoué.",
+        description: errorMessage,
         variant: "destructive",
         duration: 5000,
       })
@@ -83,21 +114,27 @@ export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
 
   const handleUpdatePersonnel = async () => {
     if (!selectedPersonnel) return
-
+    
     try {
-      await apiClient.updatePersonnel(selectedPersonnel.id, formData)
+      const response = await apiClient.updatePersonnel(selectedPersonnel.id, {
+        ...formData,
+        date_emploi: formData.date_emploi ? new Date(formData.date_emploi).toISOString().split('T')[0] : ''
+      })
+      
       setIsEditDialogOpen(false)
-      resetForm()
       loadPersonnel()
+      
       toast({
-        title: "Modification réussie",
-        description: "Le membre du personnel a été modifié.",
+        title: "Mise à jour réussie",
+        description: "Les informations du membre du personnel ont été mises à jour.",
         duration: 5000,
       })
     } catch (error) {
+      console.error("Erreur lors de la mise à jour du personnel:", error)
+      
       toast({
         title: "Erreur",
-        description: "La modification a échoué.",
+        description: "La mise à jour a échoué. Veuillez réessayer.",
         variant: "destructive",
         duration: 5000,
       })
@@ -106,24 +143,16 @@ export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
 
   const handleDeletePersonnel = async (id: number) => {
     try {
+      // Effectuer la suppression
       await apiClient.deletePersonnel(id)
-      setPersonnel(prev => {
-        const newList = prev.filter(p => p.id !== id)
-        console.log('Liste personnel après suppression:', newList)
-        return newList
-      })
-      toast({
-        title: "Suppression réussie",
-        description: "Le membre du personnel a été supprimé.",
-        duration: 5000,
-      })
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "La suppression a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
+      
+      // Recharger la liste du personnel
+      await loadPersonnel()
+      
+      // Le message de succès est géré par le composant ConfirmDeleteButton
+    } catch (error: any) {
+      console.error("Erreur lors de la suppression du membre du personnel:", error)
+      throw error // Propage l'erreur pour que ConfirmDeleteButton puisse l'afficher
     }
   }
 
@@ -137,27 +166,27 @@ export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
     setSelectedPersonnel(null)
   }
 
-  const openEditDialog = (personnel: Personnel) => {
-    setSelectedPersonnel(personnel)
+  const openEditDialog = (person: Personnel) => {
+    setSelectedPersonnel(person)
     setFormData({
-      nom: personnel.nom,
-      prenom: personnel.prenom,
-      date_emploi: personnel.date_emploi,
-      categorie: personnel.categorie,
+      nom: person.nom,
+      prenom: person.prenom,
+      date_emploi: person.date_emploi.split('T')[0],
+      categorie: person.categorie,
     })
     setIsEditDialogOpen(true)
   }
 
   const getCategorieLabel = (categorie: string) => {
     switch (categorie) {
-      case "COACH":
-        return "Coach"
-      case "MENAGE":
-        return "Ménage"
-      case "AIDE_SOIGNANT":
-        return "Aide-soignant"
-      case "AUTRE":
-        return "Autre"
+      case 'COACH':
+        return 'Coach'
+      case 'MENAGE':
+        return 'Ménage'
+      case 'AIDE_SOIGNANT':
+        return 'Aide-soignant'
+      case 'AUTRE':
+        return 'Autre'
       default:
         return categorie
     }
@@ -165,211 +194,264 @@ export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
 
   const getCategorieBadgeColor = (categorie: string) => {
     switch (categorie) {
-      case "COACH":
-        return "bg-blue-100 text-blue-800"
-      case "MENAGE":
-        return "bg-green-100 text-green-800"
-      case "AIDE_SOIGNANT":
-        return "bg-purple-100 text-purple-800"
-      case "AUTRE":
-        return "bg-gray-100 text-gray-800"
+      case 'COACH':
+        return 'bg-blue-100 text-blue-800'
+      case 'MENAGE':
+        return 'bg-green-100 text-green-800'
+      case 'AIDE_SOIGNANT':
+        return 'bg-purple-100 text-purple-800'
       default:
-        return "bg-gray-100 text-gray-800"
+        return 'bg-gray-100 text-gray-800'
     }
   }
 
+  // Filtrer le personnel en fonction du terme de recherche
+  const filteredPersonnel = personnel.filter(p => 
+    p.nom.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    p.prenom.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
   if (loading) {
-    return <div className="flex justify-center p-8">Chargement...</div>
+    return (
+      <div className="flex justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <div>
-            <CardTitle>Gestion du Personnel</CardTitle>
-            <CardDescription>Gérez les membres du personnel (coach, ménagère, aide-soignant, etc.)</CardDescription>
+    <div className="space-y-6">
+      <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Gestion du Personnel</h2>
+          <p className="text-sm text-muted-foreground">
+            Gérez les membres du personnel (coach, ménagère, aide-soignant, etc.)
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="relative">
+            <Input
+              placeholder="Rechercher par nom ou prénom..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full md:w-64"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadPersonnel} title="Actualiser la liste">
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => resetForm()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nouveau personnel
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Ajouter un membre du personnel</DialogTitle>
-                  <DialogDescription>Créez un nouveau membre du personnel</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="prenom">Prénom</Label>
-                      <Input
-                        id="prenom"
-                        value={formData.prenom}
-                        onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                        placeholder="Prénom"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="nom">Nom</Label>
-                      <Input
-                        id="nom"
-                        value={formData.nom}
-                        onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                        placeholder="Nom"
-                      />
-                    </div>
-                  </div>
+          <Button variant="outline" size="icon" onClick={loadPersonnel} title="Actualiser">
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={resetForm}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nouveau personnel
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Ajouter un membre du personnel</DialogTitle>
+                <DialogDescription>
+                  Remplissez les informations pour ajouter un nouveau membre du personnel.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="date_emploi">Date d'emploi</Label>
+                    <Label htmlFor="prenom">Prénom</Label>
                     <Input
-                      id="date_emploi"
-                      type="date"
-                      value={formData.date_emploi}
-                      onChange={(e) => setFormData({ ...formData, date_emploi: e.target.value })}
+                      id="prenom"
+                      value={formData.prenom}
+                      onChange={(e) => setFormData({...formData, prenom: e.target.value})}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="categorie">Catégorie</Label>
-                    <Select
-                      value={formData.categorie}
-                      onValueChange={(value: any) => setFormData({ ...formData, categorie: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="COACH">Coach</SelectItem>
-                        <SelectItem value="MENAGE">Ménage</SelectItem>
-                        <SelectItem value="AIDE_SOIGNANT">Aide-soignant</SelectItem>
-                        <SelectItem value="AUTRE">Autre</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="nom">Nom</Label>
+                    <Input
+                      id="nom"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({...formData, nom: e.target.value})}
+                    />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Annuler
-                  </Button>
-                  <Button onClick={handleCreatePersonnel}>Créer</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nom complet</TableHead>
-              <TableHead>Date d'emploi</TableHead>
-              <TableHead>Catégorie</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {personnel.map((person) => (
-              <TableRow key={person.id}>
-                <TableCell className="font-medium">
-                  {person.prenom} {person.nom}
-                </TableCell>
-                <TableCell>{new Date(person.date_emploi).toLocaleDateString("fr-FR")}</TableCell>
-                <TableCell>
-                  <Badge className={getCategorieBadgeColor(person.categorie)}>
-                    {getCategorieLabel(person.categorie)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openEditDialog(person)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <ConfirmDeleteButton onDelete={() => handleDeletePersonnel(person.id)}>
-                        <span className="flex items-center"><Trash2 className="h-4 w-4" /></span>
-                      </ConfirmDeleteButton>
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-
-        {personnel.length === 0 && (
-          <div className="text-center py-8 text-gray-500">Aucun membre du personnel enregistré</div>
-        )}
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Modifier le personnel</DialogTitle>
-              <DialogDescription>Modifiez les informations du membre du personnel</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-prenom">Prénom</Label>
+                  <Label htmlFor="date_emploi">Date d'emploi</Label>
                   <Input
-                    id="edit-prenom"
-                    value={formData.prenom}
-                    onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
+                    id="date_emploi"
+                    type="date"
+                    value={formData.date_emploi}
+                    onChange={(e) => setFormData({...formData, date_emploi: e.target.value})}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-nom">Nom</Label>
-                  <Input
-                    id="edit-nom"
-                    value={formData.nom}
-                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  />
+                  <Label>Catégorie</Label>
+                  <Select
+                    value={formData.categorie}
+                    onValueChange={(value: "COACH" | "MENAGE" | "AIDE_SOIGNANT" | "AUTRE") => 
+                      setFormData({...formData, categorie: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sélectionner une catégorie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="COACH">Coach</SelectItem>
+                      <SelectItem value="MENAGE">Ménage</SelectItem>
+                      <SelectItem value="AIDE_SOIGNANT">Aide-soignant</SelectItem>
+                      <SelectItem value="AUTRE">Autre</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleCreatePersonnel}>
+                  Ajouter
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nom</TableHead>
+                <TableHead>Prénom</TableHead>
+                <TableHead>Date d'emploi</TableHead>
+                <TableHead>Catégorie</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredPersonnel.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    {searchTerm 
+                      ? "Aucun membre du personnel ne correspond à votre recherche" 
+                      : "Aucun membre du personnel trouvé"}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredPersonnel.map((person) => (
+                  <TableRow key={person.id}>
+                    <TableCell>{person.nom}</TableCell>
+                    <TableCell>{person.prenom}</TableCell>
+                    <TableCell>{new Date(person.date_emploi).toLocaleDateString('fr-FR')}</TableCell>
+                    <TableCell>
+                      <Badge className={getCategorieBadgeColor(person.categorie)}>
+                        {getCategorieLabel(person.categorie)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditDialog(person)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <ConfirmDeleteButton
+                          onDelete={() => handleDeletePersonnel(person.id)}
+                          confirmMessage={`Êtes-vous sûr de vouloir supprimer ${person.prenom} ${person.nom} ?`}
+                          successMessage={`${person.prenom} ${person.nom} a été supprimé(e) avec succès.`}
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </ConfirmDeleteButton>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Dialogue d'édition */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier le membre du personnel</DialogTitle>
+            <DialogDescription>
+              Modifiez les informations de {selectedPersonnel?.prenom} {selectedPersonnel?.nom}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-date_emploi">Date d'emploi</Label>
+                <Label htmlFor="edit-prenom">Prénom</Label>
                 <Input
-                  id="edit-date_emploi"
-                  type="date"
-                  value={formData.date_emploi}
-                  onChange={(e) => setFormData({ ...formData, date_emploi: e.target.value })}
+                  id="edit-prenom"
+                  value={formData.prenom}
+                  onChange={(e) => setFormData({...formData, prenom: e.target.value})}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-categorie">Catégorie</Label>
-                <Select
-                  value={formData.categorie}
-                  onValueChange={(value: any) => setFormData({ ...formData, categorie: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="COACH">Coach</SelectItem>
-                    <SelectItem value="MENAGE">Ménage</SelectItem>
-                    <SelectItem value="AIDE_SOIGNANT">Aide-soignant</SelectItem>
-                    <SelectItem value="AUTRE">Autre</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="edit-nom">Nom</Label>
+                <Input
+                  id="edit-nom"
+                  value={formData.nom}
+                  onChange={(e) => setFormData({...formData, nom: e.target.value})}
+                />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button onClick={handleUpdatePersonnel}>Sauvegarder</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+            <div className="space-y-2">
+              <Label htmlFor="edit-date_emploi">Date d'emploi</Label>
+              <Input
+                id="edit-date_emploi"
+                type="date"
+                value={formData.date_emploi}
+                onChange={(e) => setFormData({...formData, date_emploi: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Catégorie</Label>
+              <Select
+                value={formData.categorie}
+                onValueChange={(value: "COACH" | "MENAGE" | "AIDE_SOIGNANT" | "AUTRE") => 
+                  setFormData({...formData, categorie: value})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner une catégorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="COACH">Coach</SelectItem>
+                  <SelectItem value="MENAGE">Ménage</SelectItem>
+                  <SelectItem value="AIDE_SOIGNANT">Aide-soignant</SelectItem>
+                  <SelectItem value="AUTRE">Autre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleUpdatePersonnel}>
+              Enregistrer les modifications
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
-} 
+}

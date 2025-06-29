@@ -1,5 +1,13 @@
 const API_BASE_URL = "http://127.0.0.1:8000/api"
 
+// Déclaration de l'interface pour étendre Error avec des propriétés personnalisées
+declare global {
+  interface Error {
+    response?: Response;
+    errors?: any;
+  }
+}
+
 interface LoginCredentials {
   email: string
   password: string
@@ -9,10 +17,12 @@ interface RegisterData {
   email: string
   nom: string
   prenom: string
+  telephone?: string
   password: string
 }
 
 interface User {
+  telephone: string
   id: number
   email: string
   nom: string
@@ -77,6 +87,41 @@ export interface Reservation {
   description?: string
 }
 
+export interface Charge {
+  id: number
+  titre: string
+  montant: number
+  date: string
+  description: string
+  created_at: string
+  updated_at: string
+}
+
+interface FinancialData {
+  total_revenue: number
+  total_expenses: number
+  total_charges: number
+  profit: number
+  active_clients: number
+  monthly_stats?: Array<{
+    month: string
+    revenue: number
+    expenses: number
+    charges: number
+    profit: number
+  }>
+  subscription_stats?: Array<{
+    name: string
+    count: number
+    revenue: number
+  }>
+  session_stats?: Array<{
+    title: string
+    bookings: number
+    revenue: number
+  }>
+}
+
 class ApiClient {
   private getAuthHeaders() {
     const token = localStorage.getItem("access_token")
@@ -109,10 +154,16 @@ class ApiClient {
   }
 
   async register(userData: RegisterData) {
+    // Ajout du rôle CLIENT par défaut
+    const userDataWithRole = {
+      ...userData,
+      role: "CLIENT"
+    };
+    
     const response = await fetch(`${API_BASE_URL}/register/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(userData),
+      body: JSON.stringify(userDataWithRole),
     })
     return this.handleResponse(response)
   }
@@ -122,6 +173,46 @@ class ApiClient {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<User>(response)
+  }
+
+  async updateProfile(userData: Partial<User> & { currentPassword?: string; newPassword?: string }): Promise<User> {
+    try {
+      // Préparer les données à envoyer
+      const dataToSend: any = { ...userData };
+      
+      // Si un nouveau mot de passe est fourni, on l'ajoute dans le format attendu
+      if (userData.newPassword) {
+        dataToSend.password = userData.newPassword;
+      }
+      
+      // On ne veut pas envoyer ces champs supplémentaires au backend
+      delete dataToSend.currentPassword;
+      delete dataToSend.newPassword;
+      
+      console.log('Envoi des données de mise à jour du profil:', dataToSend);
+      
+      const response = await fetch(`${API_BASE_URL}/me/`, {
+        method: 'PATCH',
+        headers: {
+          ...this.getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dataToSend),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Erreur lors de la mise à jour du profil:', errorData);
+        throw new Error(errorData.detail || 'Erreur lors de la mise à jour du profil');
+      }
+      
+      const updatedUser = await response.json();
+      return updatedUser;
+      
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour du profil:', error);
+      throw error;
+    }
   }
 
   async refreshToken() {
@@ -153,12 +244,64 @@ class ApiClient {
   }
 
   async createUser(userData: any) {
-    const response = await fetch(`${API_BASE_URL}/users/`, {
-      method: "POST",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(userData),
-    })
-    return this.handleResponse(response)
+    try {
+      const url = `${API_BASE_URL}/users/`
+      const headers = {
+        ...this.getAuthHeaders(),
+        'Content-Type': 'application/json'
+      }
+      
+      console.log('Envoi des données utilisateur au serveur:', {
+        url,
+        method: 'POST',
+        headers,
+        body: userData
+      })
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(userData),
+      })
+
+      console.log('Réponse du serveur:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+
+      if (!response.ok) {
+        let errorData
+        try {
+          errorData = await response.json()
+          console.error('Erreur du serveur:', errorData)
+        } catch (e) {
+          const text = await response.text()
+          console.error('Erreur lors de la lecture de la réponse d\'erreur:', e, 'Réponse brute:', text)
+          throw new Error(`Erreur ${response.status}: ${response.statusText}`)
+        }
+        
+        // Gestion des erreurs de validation
+        if (response.status === 400) {
+          const errorMessages = []
+          for (const [field, errors] of Object.entries(errorData)) {
+            if (Array.isArray(errors)) {
+              errorMessages.push(`${field}: ${errors.join(', ')}`)
+            } else {
+              errorMessages.push(`${field}: ${errors}`)
+            }
+          }
+          throw new Error(errorMessages.join('\n'))
+        }
+        
+        throw new Error(errorData.detail || errorData.message || `Erreur lors de la création de l'utilisateur (${response.status} ${response.statusText})`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Erreur dans createUser:', error)
+      throw error
+    }
   }
 
   async updateUser(id: number, userData: any) {
@@ -170,12 +313,26 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  async deleteUser(id: number) {
+  async deleteUser(id: number): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/users/${id}/`, {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     })
-    return this.handleResponse(response)
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Une erreur est survenue" }))
+      throw new Error(error.message || `Erreur ${response.status}`)
+    }
+    
+    // Pour une suppression réussie, on ne s'attend pas à avoir de contenu dans la réponse
+    if (response.status !== 204) { // 204 No Content est la réponse standard pour DELETE
+      try {
+        return await response.json()
+      } catch (e) {
+        // Si la réponse n'est pas du JSON, on ignore car la suppression a réussi
+        return
+      }
+    }
   }
 
   // Abonnements
@@ -209,7 +366,19 @@ class ApiClient {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     })
-    return this.handleResponse(response)
+    
+    // Pour les réponses DELETE, on ne s'attend pas à du contenu
+    if (response.status === 204) {
+      return { success: true }
+    }
+    
+    // Si on a du contenu, on le parse
+    const contentType = response.headers.get('content-type')
+    if (contentType && contentType.indexOf('application/json') !== -1) {
+      return response.json()
+    }
+    
+    return { success: true }
   }
 
   async getClientsAbonnes(abonnementId: number) {
@@ -372,7 +541,16 @@ class ApiClient {
     const response = await fetch(`${API_BASE_URL}/charges/`, {
       headers: this.getAuthHeaders(),
     })
-    return this.handleResponse(response)
+    const data = await response.json()
+    
+    // Handle both array and { results: [] } response formats
+    if (Array.isArray(data)) {
+      return data
+    } else if (data && Array.isArray(data.results)) {
+      return data.results
+    }
+    
+    return []
   }
 
   async createCharge(data: any) {
@@ -436,22 +614,43 @@ class ApiClient {
   }
 
   // Rapports Financiers
-  async getFinancialReport() {
+  async getFinancialReport(): Promise<{
+    total_revenue: number
+    total_expenses: number
+    total_charges: number
+    profit: number
+    active_clients: number
+    monthly_stats?: Array<{
+      month: string
+      revenue: number
+      expenses: number
+      charges: number
+      profit: number
+    }>
+    subscription_stats?: Array<{
+      name: string
+      count: number
+      revenue: number
+    }>
+    session_stats?: Array<{
+      title: string
+      bookings: number
+      revenue: number
+    }>
+  }> {
     const response = await fetch(`${API_BASE_URL}/financial-report/`, {
       headers: this.getAuthHeaders(),
     })
-    return this.handleResponse(response)
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.message || 'Failed to fetch financial report')
+    }
+    
+    return response.json()
   }
 
-  // Profil utilisateur
-  async updateProfile(userData: any) {
-    const response = await fetch(`${API_BASE_URL}/me/`, {
-      method: "PATCH",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(userData),
-    })
-    return this.handleResponse(response)
-  }
+  // La méthode updateProfile est déjà définie plus haut avec une meilleure implémentation
 
   // Personnel
   async getPersonnel() {
@@ -462,12 +661,26 @@ class ApiClient {
   }
 
   async createPersonnel(data: any) {
-    const response = await fetch(`${API_BASE_URL}/personnel/`, {
-      method: "POST",
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(data),
-    })
-    return this.handleResponse(response)
+    try {
+      const response = await fetch(`${API_BASE_URL}/personnel/`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(data),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const error = new Error(errorData.detail || 'Erreur lors de la création du personnel')
+        error.response = response
+        error.errors = errorData
+        throw error
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error("Erreur dans createPersonnel:", error)
+      throw error
+    }
   }
 
   async updatePersonnel(id: number, data: any) {
@@ -484,7 +697,19 @@ class ApiClient {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     })
-    return this.handleResponse(response)
+    
+    // Pour les réponses DELETE, on ne s'attend pas à du contenu
+    if (response.status === 204) {
+      return { success: true }
+    }
+    
+    // Si on a du contenu, on le parse
+    const contentType = response.headers.get('content-type')
+    if (contentType && contentType.includes('application/json')) {
+      return response.json()
+    }
+    
+    return { success: true }
   }
 
   // Rapport journalier
@@ -555,5 +780,9 @@ class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient()
+// Export types
 export type { User, Ticket, ApiResponse }
+
+// Export Charge interface
+// Export API client instance
+export const apiClient = new ApiClient()
