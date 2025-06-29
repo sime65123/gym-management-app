@@ -87,6 +87,7 @@ export interface Reservation {
   description?: string
 }
 
+
 export interface Charge {
   id: number
   titre: string
@@ -97,7 +98,7 @@ export interface Charge {
   updated_at: string
 }
 
-interface FinancialData {
+export interface FinancialData {
   total_revenue: number
   total_expenses: number
   total_charges: number
@@ -120,6 +121,51 @@ interface FinancialData {
     bookings: number
     revenue: number
   }>
+}
+
+export interface HistoriquePaiement {
+  id: number
+  abonnement_presentiel: number
+  montant_ajoute: number
+  montant_total_apres: number
+  date_modification: string
+  client_nom: string
+  client_prenom: string
+}
+
+export interface AbonnementClientPresentiel {
+  id: number
+  client: number | null
+  client_nom: string
+  client_prenom: string
+  abonnement: number
+  abonnement_nom: string
+  abonnement_prix: number
+  date_debut: string
+  date_fin: string
+  montant_total: number
+  montant_paye: number
+  statut_paiement: 'PAIEMENT_INACHEVE' | 'PAIEMENT_TERMINE'
+  statut: 'EN_COURS' | 'TERMINE' | 'EXPIRE'
+  date_creation: string
+  employe_creation: number | null
+  employe_nom?: string
+  employe_prenom?: string
+  paiements_tranches: PaiementTranche[]
+  historique_paiements: HistoriquePaiement[]
+  facture_pdf_url?: string | null
+}
+
+export interface PaiementTranche {
+  id: number
+  abonnement_presentiel: number
+  montant: number
+  date_paiement: string
+  mode_paiement: 'ESPECE' | 'CARTE' | 'CHEQUE'
+  employe: number | null
+  employe_nom?: string
+  employe_prenom?: string
+
 }
 
 class ApiClient {
@@ -778,11 +824,87 @@ class ApiClient {
     })
     return this.handleResponse(response)
   }
+
+  // Abonnements clients présentiels
+  async getAbonnementsClientsPresentiels() {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/`, {
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse(response)
+  }
+
+  async createAbonnementClientPresentiel(data: any) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse(response)
+  }
+
+  async updateAbonnementClientPresentiel(id: number, data: any) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${id}/`, {
+      method: "PATCH",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse(response)
+  }
+
+  async deleteAbonnementClientPresentiel(id: number) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${id}/`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse(response)
+  }
+
+  async ajouterPaiementTranche(abonnementId: number, data: { montant: number; mode_paiement?: string }) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${abonnementId}/ajouter_paiement/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    })
+    return this.handleResponse(response)
+  }
+
+  async genererFactureAbonnementPresentiel(abonnementId: number) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${abonnementId}/generer_facture/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+    })
+    return this.handleResponse(response)
+  }
+
+  async modifierMontantPaye(abonnementId: number, montantAjoute: number) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${abonnementId}/modifier_montant_paye/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ montant_ajoute: montantAjoute }),
+    })
+    return this.handleResponse(response)
+  }
+
+  async telechargerFactureAbonnementPresentiel(abonnementId: number) {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${abonnementId}/telecharger_facture/`, {
+      headers: this.getAuthHeaders(),
+    })
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: "Une erreur est survenue" }))
+      throw new Error(error.message || `Erreur ${response.status}`)
+    }
+    
+    // Retourner le blob pour le téléchargement
+    return response.blob()
+  }
 }
+
 
 // Export types
 export type { User, Ticket, ApiResponse }
 
 // Export Charge interface
 // Export API client instance
+
 export const apiClient = new ApiClient()
