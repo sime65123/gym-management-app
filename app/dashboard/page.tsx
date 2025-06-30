@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const { user, logout } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const adminDashboardRef = useRef<{ refreshUsers: () => void }>(null)
 
   const getUserInitials = (user: any) => {
     return `${user.prenom.charAt(0)}${user.nom.charAt(0)}`.toUpperCase()
@@ -42,6 +43,13 @@ export default function DashboardPage() {
     }
   }
 
+  // Fonction pour rafraîchir la liste des utilisateurs
+  const handleProfileUpdate = () => {
+    if (adminDashboardRef.current) {
+      adminDashboardRef.current.refreshUsers()
+    }
+  }
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
@@ -54,7 +62,13 @@ export default function DashboardPage() {
                   {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                 </Button>
                 <div className="flex items-center space-x-2">
-                  <Zap className="h-8 w-8 text-yellow-400 animated-logo" />
+                  <div className="h-10 w-10 rounded-full overflow-hidden shadow-md border-2 border-white">
+                    <img 
+                      src="/lg1.jpg" 
+                      alt="Logo GYM ZONE" 
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
                   <h1 className="text-2xl font-bold text-gray-900">GYM ZONE</h1>
                 </div>
               </div>
@@ -109,7 +123,7 @@ export default function DashboardPage() {
 
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {user?.role === "ADMIN" && <AdminDashboard />}
+          {user?.role === "ADMIN" && <AdminDashboard ref={adminDashboardRef} />}
           {user?.role === "EMPLOYE" && <EmployeeDashboard user={user} />}
           {user?.role === "CLIENT" && <ClientDashboard user={user} />}
         </main>
@@ -119,7 +133,7 @@ export default function DashboardPage() {
           <DialogHeader>
             <DialogTitle>Gestion du Profil</DialogTitle>
           </DialogHeader>
-          <ProfileManagement />
+          <ProfileManagement onUpdate={handleProfileUpdate} />
         </DialogContent>
       </Dialog>
     </ProtectedRoute>

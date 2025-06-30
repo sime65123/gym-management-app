@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { FileText, Download, Search, Calendar, DollarSign, ExternalLink, RotateCcw } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { DocumentHeader } from "@/components/shared/document-header"
 
 interface Facture {
   id: number
@@ -52,19 +53,148 @@ export function InvoiceManagement() {
   }
 
   const handleDownloadPDF = async (facture: Facture) => {
-    setDownloadingId(facture.id)
     try {
-      // Utiliser l'URL directe du PDF fournie par le backend
-      const link = document.createElement("a")
-      link.href = facture.fichier_pdf_url
-      link.download = `facture-${facture.uuid}.pdf`
-      link.target = "_blank"
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      setDownloadingId(facture.id)
+      
+      // Créer un conteneur pour le contenu HTML
+      const container = document.createElement('div')
+      container.style.padding = '20px'
+      container.style.maxWidth = '800px'
+      container.style.margin = '0 auto'
+      
+      // Ajouter l'en-tête personnalisé
+      container.innerHTML = `
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="width: 80px; height: 80px; border-radius: 50%; overflow: hidden; margin: 0 auto 10px; border: 2px solid #fff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <img src="${window.location.origin}/lg1.jpg" alt="Logo GYM ZONE" style="width: 100%; height: 100%; object-fit: cover;" />
+          </div>
+          <h1 style="font-size: 24px; font-weight: bold; color: #111827; margin: 5px 0;">GYM ZONE</h1>
+          <p style="color: #4b5563; font-size: 14px; margin: 0;">Votre salle de sport professionnelle</p>
+          <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0;" />
+          <h2 style="font-size: 18px; color: #111827; margin: 10px 0;">FACTURE #${facture.uuid}</h2>
+        </div>
+      `
+      
+      // Créer une nouvelle fenêtre pour l'impression
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Facture ${facture.uuid} - GYM ZONE</title>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+                .header { text-align: center; margin-bottom: 20px; }
+                .logo { width: 80px; height: 80px; border-radius: 50%; overflow: hidden; margin: 0 auto 10px; border: 2px solid #fff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+                .logo img { width: 100%; height: 100%; object-fit: cover; }
+                h1 { font-size: 24px; font-weight: bold; color: #111827; margin: 5px 0; }
+                .subtitle { color: #4b5563; font-size: 14px; margin: 0 0 15px; }
+                .divider { border: 0; border-top: 1px solid #e5e7eb; margin: 15px 0; }
+                .section { margin-bottom: 20px; }
+                .section-title { font-size: 18px; font-weight: bold; color: #111827; margin: 10px 0; }
+                .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+                .info-item strong { display: block; margin-bottom: 5px; color: #4b5563; font-size: 14px; }
+                .info-item span { display: block; font-weight: 500; }
+                table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                th { text-align: left; padding: 10px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+                td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+                .text-right { text-align: right; }
+                .total { font-weight: bold; font-size: 18px; margin-top: 20px; text-align: right; }
+                .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #6b7280; }
+                @media print {
+                  @page { margin: 0; }
+                  body { padding: 20px; }
+                  .no-print { display: none; }
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <div class="logo">
+                    <img src="${window.location.origin}/lg1.jpg" alt="Logo GYM ZONE" />
+                  </div>
+                  <h1>GYM ZONE</h1>
+                  <p class="subtitle">Votre salle de sport professionnelle</p>
+                  <div class="divider"></div>
+                  <h2>FACTURE #${facture.uuid}</h2>
+                </div>
+                
+                <div class="info-grid">
+                  <div>
+                    <div class="info-item">
+                      <strong>Date d'émission</strong>
+                      <span>${new Date(facture.date_generation).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                    <div class="info-item">
+                      <strong>Client</strong>
+                      <span>${facture.paiement.client}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="info-item">
+                      <strong>Service</strong>
+                      <span>${facture.paiement.abonnement?.nom || facture.paiement.seance?.titre || 'Recharge compte'}</span>
+                    </div>
+                    <div class="info-item">
+                      <strong>Statut</strong>
+                      <span>${facture.paiement.status === 'PAYE' ? 'Payé' : 'En attente'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="section">
+                  <h3 class="section-title">Détails du paiement</h3>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Description</th>
+                        <th class="text-right">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>${facture.paiement.abonnement?.nom || facture.paiement.seance?.titre || 'Recharge de compte'}</td>
+                        <td class="text-right">${facture.paiement.montant.toLocaleString()} FCFA</td>
+                      </tr>
+                      <tr>
+                        <td class="text-right" colspan="2">
+                          <strong>Total: ${facture.paiement.montant.toLocaleString()} FCFA</strong>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div class="footer">
+                  <p>Merci pour votre confiance !</p>
+                  <p>GYM ZONE - Tél: +225 XX XX XX XX - Email: contact@gymzone.ci</p>
+                  <p>Cet email est une facture pour le paiement ci-dessus.</p>
+                </div>
+                
+                <div class="no-print" style="margin-top: 20px; text-align: center;">
+                  <button onclick="window.print()" style="padding: 10px 20px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
+                    Imprimer la facture
+                  </button>
+                </div>
+              </div>
+            </body>
+          </html>
+        `)
+        printWindow.document.close()
+      } else {
+        // Fallback si la fenêtre ne s'ouvre pas (bloqueur de popup)
+        const link = document.createElement('a')
+        link.href = facture.fichier_pdf_url
+        link.download = `facture-${facture.uuid}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
     } catch (error) {
-      console.error("Erreur lors du téléchargement:", error)
-      alert("Erreur lors du téléchargement de la facture")
+      console.error("Erreur lors du téléchargement du PDF:", error)
     } finally {
       setDownloadingId(null)
     }

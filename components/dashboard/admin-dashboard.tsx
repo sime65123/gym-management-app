@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -23,7 +23,11 @@ interface DashboardStats {
   active_clients: number
 }
 
-export function AdminDashboard() {
+interface AdminDashboardRef {
+  refreshUsers: () => void;
+}
+
+const AdminDashboard = forwardRef<AdminDashboardRef>((props, ref) => {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [seanceKey, setSeanceKey] = useState(0)
@@ -31,6 +35,16 @@ export function AdminDashboard() {
   const [personnelKey, setPersonnelKey] = useState(0)
   const [chargeKey, setChargeKey] = useState(0)
   const [userKey, setUserKey] = useState(0)
+  const userManagementRef = useRef<{ loadUsers: () => void }>(null)
+
+  // expose refreshUsers method
+  useImperativeHandle(ref, () => ({
+    refreshUsers: () => {
+      if (userManagementRef.current) {
+        userManagementRef.current.loadUsers()
+      }
+    }
+  }))
 
   useEffect(() => {
     loadDashboardData()
@@ -357,7 +371,7 @@ export function AdminDashboard() {
         </TabsList>
 
         <TabsContent value="users">
-          <UserManagement key={userKey} onReload={() => setUserKey(k => k + 1)} />
+          <UserManagement key={userKey} ref={userManagementRef} onReload={() => setUserKey(k => k + 1)} />
         </TabsContent>
 
         <TabsContent value="personnel">
@@ -390,4 +404,9 @@ export function AdminDashboard() {
       </Tabs>
     </div>
   )
-}
+});
+
+AdminDashboard.displayName = 'AdminDashboard';
+
+export default AdminDashboard;
+export { AdminDashboard };

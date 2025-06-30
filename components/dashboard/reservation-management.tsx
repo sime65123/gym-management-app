@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar, Users, Trash2, CheckCircle, XCircle, Clock, RotateCcw } from "lucide-react"
+import { Calendar, Users, Trash2, CheckCircle, XCircle, Clock, RotateCcw, FileText } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
@@ -115,6 +115,211 @@ export function ReservationManagement() {
         duration: 5000,
       })
     }
+  }
+
+  const handleViewTicket = (ticketUrl: string, reservation: ReservationType) => {
+    if (!ticketUrl) return;
+
+    // Créer une nouvelle fenêtre pour l'aperçu
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Récupérer les informations de la réservation
+    const seanceInfo = reservation.seance;
+    const clientName = reservation.client_nom || (typeof reservation.client === 'object' ? reservation.client.nom : 'Client');
+    const seanceTitle = seanceInfo?.titre || 'Séance de sport';
+    const seanceDate = seanceInfo?.date_heure ? new Date(seanceInfo.date_heure).toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }) : 'Date non définie';
+
+    // Créer le contenu HTML pour l'aperçu
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ticket GYM ZONE</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+          body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1a1a1a; }
+          .ticket-container { max-width: 600px; margin: 0 auto; padding: 24px; }
+          .header { text-align: center; margin-bottom: 24px; }
+          .logo { 
+            width: 80px; 
+            height: 80px; 
+            border-radius: 50%; 
+            object-fit: cover;
+            border: 3px solid white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin: 0 auto 12px;
+          }
+          .title { 
+            font-size: 24px; 
+            font-weight: 700; 
+            color: #7c3aed;
+            margin: 0;
+            letter-spacing: -0.5px;
+          }
+          .subtitle {
+            color: #6b7280;
+            margin: 4px 0 0;
+            font-size: 14px;
+          }
+          .ticket { 
+            background: white; 
+            border-radius: 12px; 
+            overflow: hidden;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+            margin-bottom: 24px;
+          }
+          .ticket-header { 
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white; 
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .ticket-title { 
+            font-size: 18px; 
+            font-weight: 600; 
+            margin: 0;
+          }
+          .ticket-body { padding: 24px; }
+          .info-row { 
+            display: flex; 
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f3f4f6;
+          }
+          .info-row:last-child { 
+            margin-bottom: 0;
+            border-bottom: none;
+          }
+          .info-label { 
+            font-weight: 500; 
+            color: #6b7280;
+            min-width: 120px;
+          }
+          .info-value { flex: 1; font-weight: 500; }
+          .barcode {
+            text-align: center;
+            padding: 16px 0;
+            margin-top: 24px;
+            background: #f9fafb;
+            border-radius: 8px;
+          }
+          .barcode-text {
+            font-family: monospace;
+            letter-spacing: 4px;
+            font-size: 24px;
+            color: #1f2937;
+            margin-top: 8px;
+          }
+          .print-button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: #7c3aed;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 24px;
+            transition: background 0.2s;
+          }
+          .print-button:hover {
+            background: #6d28d9;
+          }
+          @media print {
+            .print-button { display: none; }
+            body { padding: 20px; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="ticket-container">
+          <div class="header">
+            <img src="/lg1.jpg" alt="GYM ZONE Logo" class="logo">
+            <h1 class="title">GYM ZONE</h1>
+            <p class="subtitle">Votre billet d'accès</p>
+          </div>
+          
+          <div class="ticket">
+            <div class="ticket-header">
+              <h2 class="ticket-title">${seanceTitle}</h2>
+              <div class="ticket-badge">Billet</div>
+            </div>
+            <div class="ticket-body">
+              <div class="info-row">
+                <div class="info-label">Client</div>
+                <div class="info-value">${clientName}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Date & Heure</div>
+                <div class="info-value">${seanceDate}</div>
+              </div>
+              <div class="info-row">
+                <div class="info-label">Statut</div>
+                <div class="info-value"><strong style="color: #10b981;">Confirmé</strong></div>
+              </div>
+              
+              <div class="barcode">
+                <svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="10" y="10" width="4" height="40" fill="#1f2937"/>
+                  <rect x="18" y="15" width="3" height="30" fill="#1f2937"/>
+                  <rect x="26" y="10" width="2" height="40" fill="#1f2937"/>
+                  <rect x="32" y="20" width="3" height="30" fill="#1f2937"/>
+                  <rect x="40" y="10" width="1" height="40" fill="#1f2937"/>
+                  <rect x="46" y="15" width="3" height="35" fill="#1f2937"/>
+                  <rect x="54" y="10" width="2" height="40" fill="#1f2937"/>
+                  <rect x="60" y="5" width="1" height="45" fill="#1f2937"/>
+                  <rect x="66" y="10" width="3" height="40" fill="#1f2937"/>
+                  <rect x="74" y="20" width="2" height="30" fill="#1f2937"/>
+                  <rect x="80" y="10" width="1" height="40" fill="#1f2937"/>
+                  <rect x="86" y="15" width="3" height="35" fill="#1f2937"/>
+                  <rect x="94" y="10" width="2" height="40" fill="#1f2937"/>
+                  <rect x="100" y="5" width="1" height="45" fill="#1f2937"/>
+                  <rect x="106" y="10" width="3" height="40" fill="#1f2937"/>
+                  <rect x="114" y="20" width="2" height="30" fill="#1f2937"/>
+                  <rect x="120" y="10" width="1" height="40" fill="#1f2937"/>
+                  <rect x="126" y="15" width="3" height="35" fill="#1f2937"/>
+                  <rect x="134" y="10" width="2" height="40" fill="#1f2937"/>
+                  <rect x="140" y="5" width="1" height="45" fill="#1f2937"/>
+                  <rect x="146" y="10" width="3" height="40" fill="#1f2937"/>
+                  <rect x="154" y="20" width="2" height="30" fill="#1f2937"/>
+                  <rect x="160" y="10" width="1" height="40" fill="#1f2937"/>
+                  <rect x="166" y="15" width="3" height="35" fill="#1f2937"/>
+                  <rect x="174" y="10" width="2" height="40" fill="#1f2937"/>
+                  <rect x="180" y="20" width="3" height="30" fill="#1f2937"/>
+                  <rect x="188" y="10" width="2" height="40" fill="#1f2937"/>
+                </svg>
+                <div class="barcode-text">GYMZ-${reservation.id.toString().padStart(6, '0')}</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="footer" style="text-align: center; margin-top: 32px; color: #6b7280; font-size: 13px;">
+            <p>Merci de présenter ce billet à l'accueil</p>
+            <p>GYM ZONE • contact@gymzone.com • +225 XX XX XX XX</p>
+          </div>
+          
+          <button class="print-button" onclick="window.print()">Imprimer le billet</button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Écrire le contenu dans la nouvelle fenêtre
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   }
 
   const getStatusBadge = (status: string) => {
@@ -256,7 +461,17 @@ export function ReservationManagement() {
                     <TableCell>{getStatusBadge(reservation.statut)}</TableCell>
                     <TableCell>
                       {billet && billet.fichier_pdf_url ? (
-                        <a href={billet.fichier_pdf_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Télécharger</a>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleViewTicket(billet.fichier_pdf_url, reservation)}
+                            className="flex items-center gap-1"
+                          >
+                            <FileText className="h-4 w-4" />
+                            <span>Voir le billet</span>
+                          </Button>
+                        </div>
                       ) : (
                         <span className="text-gray-400">Aucun</span>
                       )}

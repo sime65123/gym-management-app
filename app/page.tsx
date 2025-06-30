@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -17,23 +17,30 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import {
-  Zap,
-  Users,
+  AlertCircle,
+  ArrowRight,
+  Award,
   Calendar,
-  Star,
+  CheckCircle,
   ChevronLeft,
   ChevronRight,
   Clock,
-  MapPin,
-  Phone,
-  Mail,
-  CheckCircle,
-  Award,
-  Target,
+  FileText,
   Heart,
+  Lock,
+  LogIn,
+  Loader2,
+  Mail,
+  MapPin,
+  MessageSquare,
+  Phone,
   Shield,
+  Star,
+  Target,
+  TrendingUp,
   UserCheck,
-  AlertCircle,
+  Users,
+  Zap,
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAuth } from "@/components/auth/auth-context"
@@ -58,37 +65,83 @@ export default function HomePage() {
 
   // Images du carousel (placeholder)
   const gymImages = [
-    "/placeholder.svg?height=600&width=1200&text=Salle+de+Musculation",
-    "/placeholder.svg?height=600&width=1200&text=Cours+de+Fitness",
-    "/placeholder.svg?height=600&width=1200&text=Espace+Cardio",
-    "/placeholder.svg?height=600&width=1200&text=Piscine+et+Spa",
+    "/ima.jpg",
+    "/imb.jpg",
+    "/im3.jpg",
   ]
+
+  // Récupération des abonnements
+  const [abonnements, setAbonnements] = useState([
+    {
+      id: 1,
+      nom: 'Découverte',
+      description: 'Accès à la salle de sport avec équipements de base',
+      prix: 15000,
+      duree_jours: 30,
+      avantages: [
+        'Accès salle de musculation',
+        'Zone cardio',
+        'Vestiaires et douches'
+      ]
+    },
+    {
+      id: 2,
+      nom: 'Premium',
+      description: 'Accès complet à tous les équipements et services',
+      prix: 25000,
+      duree_jours: 30,
+      avantages: [
+        'Tout du plan Découverte',
+        'Cours collectifs illimités',
+        '1 séance coaching/mois',
+        'Accès piscine'
+      ]
+    },
+    {
+      id: 3,
+      nom: 'VIP',
+      description: 'Service premium avec accompagnement personnalisé',
+      prix: 40000,
+      duree_jours: 30,
+      avantages: [
+        'Tout du plan Premium',
+        'Coaching personnel illimité',
+        'Accès prioritaire',
+        'Suivi nutritionnel',
+        'Sauna et hammam'
+      ]
+    }
+  ]);
 
   // Témoignages clients
   const testimonials = [
     {
-      name: "Marie Kouassi",
+      name: "Aïcha Assam",
       rating: 5,
-      comment: "Excellente salle avec des équipements modernes. Les coachs sont très professionnels et à l'écoute.",
-      image: "/placeholder.svg?height=80&width=80&text=MK",
+      comment: "Après 6 mois d'entraînement chez GYM ZONE, j'ai perdu 12kg et gagné en confiance. Les coachs sont exceptionnels et les programmes adaptés à tous les niveaux.",
+      image: "/e1.jpg",
+      poste: "Entrepreneure, 32 ans"
     },
     {
-      name: "Jean-Baptiste Yao",
+      name: "Didier Kenfack",
       rating: 5,
-      comment: "Ambiance conviviale et motivante. J'ai atteint mes objectifs grâce à l'accompagnement personnalisé.",
-      image: "/placeholder.svg?height=80&width=80&text=JY",
+      comment: "En tant que sportif confirmé, je cherchais une salle avec des équipements professionnels. GYM ZONE a dépassé mes attentes avec son matériel de qualité et son espace de musculation spacieux.",
+      image: "/e2.jpg",
+      poste: "Coach sportif, 28 ans"
     },
     {
-      name: "Fatou Traoré",
-      rating: 4,
-      comment: "Très bonne salle, horaires flexibles et système de réservation en ligne très pratique.",
-      image: "/placeholder.svg?height=80&width=80&text=FT",
+      name: "junior fongang",
+      rating: 5,
+      comment: "L'accueil est chaleureux et les horaires d'ouverture sont parfaits pour mon emploi du temps chargé. J'apprécie particulièrement les cours collectifs dynamiques.",
+      image: "/e3.jpg",
+      poste: "Avocat, 35 ans"
     },
     {
-      name: "Koffi Asante",
+      name: "Yves kengne",
       rating: 5,
-      comment: "Infrastructure de qualité, personnel accueillant. Je recommande vivement GYM ZONE !",
-      image: "/placeholder.svg?height=80&width=80&text=KA",
+      comment: "Après une blessure, j'avais besoin d'un accompagnement personnalisé. Les coachs de GYM ZONE m'ont aidé à me remettre en forme en douceur et en sécurité.",
+      image: "/e4.jpg",
+      poste: "Comptable, 36ans"
     },
   ]
 
@@ -158,8 +211,14 @@ export default function HomePage() {
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-2">
-              <Zap className="h-8 w-8 text-yellow-400 animated-logo" />
+            <div className="flex items-center space-x-3">
+              <div className="h-12 w-12 rounded-full overflow-hidden shadow-md border-2 border-white">
+                <img 
+                  src="/lg1.jpg" 
+                  alt="Logo GYM ZONE" 
+                  className="h-full w-full object-cover"
+                />
+              </div>
               <h1 className="text-2xl font-bold text-gray-900">GYM ZONE</h1>
             </div>
 
@@ -193,96 +252,79 @@ export default function HomePage() {
                     <DialogDescription>Connectez-vous à votre compte GYM ZONE</DialogDescription>
                   </DialogHeader>
 
-                  <Tabs defaultValue="client" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="client" className="flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Client
-                      </TabsTrigger>
-                      <TabsTrigger value="staff" className="flex items-center gap-2">
-                        <UserCheck className="h-4 w-4" />
-                        Personnel
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="client" className="space-y-4 mt-4">
-                      {loginError && (
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertDescription>{loginError}</AlertDescription>
-                        </Alert>
-                      )}
-                      <form onSubmit={handleLogin} className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="client-login-email">Email</Label>
+                  <div className="space-y-4">
+                    {loginError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{loginError}</AlertDescription>
+                      </Alert>
+                    )}
+                    <form onSubmit={handleLogin} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="login-email" className="flex items-center gap-2 text-gray-700">
+                          <Mail className="h-4 w-4" />
+                          Email
+                        </Label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Mail className="h-5 w-5 text-gray-400" />
+                          </div>
                           <Input
-                            id="client-login-email"
+                            id="login-email"
                             type="email"
                             placeholder="votre@email.com"
                             value={loginData.email}
                             onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                            className="pl-10"
                             required
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="client-login-password">Mot de passe</Label>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="login-password" className="flex items-center gap-2 text-gray-700">
+                          <Lock className="h-4 w-4" />
+                          Mot de passe
+                        </Label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Lock className="h-5 w-5 text-gray-400" />
+                          </div>
                           <Input
-                            id="client-login-password"
+                            id="login-password"
                             type="password"
                             placeholder="••••••••"
                             value={loginData.password}
                             onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                            className="pl-10"
                             required
                           />
                         </div>
-                        <Button
-                          type="submit"
-                          className="w-full bg-green-600 hover:bg-green-700"
-                          disabled={loginLoading}
-                        >
-                          <Calendar className="h-4 w-4 mr-2" />
-                          {loginLoading ? "Connexion..." : "Se connecter - Client"}
-                        </Button>
-                      </form>
-                    </TabsContent>
-
-                    <TabsContent value="staff" className="space-y-4 mt-4">
-                      {loginError && (
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertDescription>{loginError}</AlertDescription>
-                        </Alert>
-                      )}
-                      <form onSubmit={handleLogin} className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="staff-login-email">Email</Label>
-                          <Input
-                            id="staff-login-email"
-                            type="email"
-                            placeholder="votre@email.com"
-                            value={loginData.email}
-                            onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="staff-login-password">Mot de passe</Label>
-                          <Input
-                            id="staff-login-password"
-                            type="password"
-                            placeholder="••••••••"
-                            value={loginData.password}
-                            onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                            required
-                          />
-                        </div>
-                        <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loginLoading}>
-                          <UserCheck className="h-4 w-4 mr-2" />
-                          {loginLoading ? "Connexion..." : "Se connecter - Personnel"}
-                        </Button>
-                      </form>
-                    </TabsContent>
-                  </Tabs>
+                      </div>
+                      <div className="text-right">
+                        <a href="#" className="text-sm text-blue-600 hover:underline">Mot de passe oublié ?</a>
+                      </div>
+                      <Button 
+                        type="submit" 
+                        className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
+                        disabled={loginLoading}
+                      >
+                        {loginLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <LogIn className="h-4 w-4" />
+                        )}
+                        {loginLoading ? "Connexion en cours..." : "Se connecter"}
+                      </Button>
+                    </form>
+                    <div className="relative mt-6">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-gray-500">Nouveau sur GYM ZONE ?</span>
+                      </div>
+                    </div>
+                  </div>
                 </DialogContent>
               </Dialog>
 
@@ -546,7 +588,7 @@ export default function HomePage() {
             <div>
               <h3 className="text-4xl font-bold text-gray-900 mb-6">À Propos de GYM ZONE</h3>
               <p className="text-lg text-gray-600 mb-6">
-                Depuis plus de 10 ans, GYM ZONE est la référence en matière de fitness en Côte d'Ivoire. Nous offrons un
+                 GYM ZONE est la référence en matière de fitness  a yaounde . Nous offrons un
                 environnement moderne, sécurisé et motivant pour tous ceux qui souhaitent améliorer leur condition
                 physique et leur bien-être.
               </p>
@@ -575,20 +617,20 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="relative">
-              <img
-                src="/placeholder.svg?height=500&width=600&text=Notre+Équipe"
-                alt="Notre équipe"
-                className="rounded-lg shadow-lg"
-              />
-              <div className="absolute -bottom-6 -left-6 bg-blue-600 text-white p-6 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <Award className="h-8 w-8 animated-logo" />
-                  <div>
-                    <div className="font-bold">Certifié ISO</div>
-                    <div className="text-sm">Qualité garantie</div>
-                  </div>
-                </div>
+            <div className="w-full">
+              <div className="relative w-full h-96 mb-6 rounded-xl overflow-hidden shadow-xl bg-gray-100">
+                <img
+                  src="/imc.jpg"
+                  alt="Installations GYM ZONE"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="relative w-full h-96 rounded-xl overflow-hidden shadow-xl bg-gray-100">
+                <img
+                  src="/imd.jpg"
+                  alt="Équipements modernes"
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
           </div>
@@ -596,46 +638,86 @@ export default function HomePage() {
       </section>
 
       {/* Why Choose Us Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h3 className="text-4xl font-bold text-gray-900 mb-4">Pourquoi Choisir GYM ZONE ?</h3>
+            <span className="inline-block px-4 py-1.5 text-sm font-semibold text-blue-600 bg-blue-100 rounded-full mb-4">
+              Pourquoi nous choisir ?
+            </span>
+            <h3 className="text-4xl font-bold text-gray-900 mb-4">L'Excellence en Fitness</h3>
+            <div className="w-20 h-1 bg-blue-600 mx-auto mb-6"></div>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Nous nous distinguons par notre approche personnalisée et nos installations de qualité
+              Découvrez ce qui fait de GYM ZONE le choix idéal pour atteindre vos objectifs fitness
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="text-center">
-              <div className="bg-blue-100 rounded-full p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                <Target className="h-10 w-10 text-blue-600 animated-logo" />
+            <div className="group relative p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-white opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="w-20 h-20 mx-auto mb-6 bg-blue-100 rounded-2xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
+                  <Target className="h-10 w-10 text-blue-600" />
+                </div>
+                <h4 className="text-xl font-bold text-gray-900 mb-3">Objectifs Personnalisés</h4>
+                <p className="text-gray-600">Programme sur mesure adapté à vos besoins spécifiques et à votre rythme.</p>
+                <div className="mt-4">
+                  <span className="inline-flex items-center text-blue-600 font-medium group-hover:underline">
+                    En savoir plus
+                    <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </span>
+                </div>
               </div>
-              <h4 className="text-xl font-semibold mb-2">Objectifs Personnalisés</h4>
-              <p className="text-gray-600">Programme adapté à vos besoins et objectifs spécifiques</p>
             </div>
 
-            <div className="text-center">
-              <div className="bg-green-100 rounded-full p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                <Zap className="h-10 w-10 text-green-600 animated-logo" />
+            <div className="group relative p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+              <div className="absolute inset-0 bg-gradient-to-br from-green-50 to-white opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="w-20 h-20 mx-auto mb-6 bg-green-100 rounded-2xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
+                  <Zap className="h-10 w-10 text-green-600" />
+                </div>
+                <h4 className="text-xl font-bold text-gray-900 mb-3">Équipements Modernes</h4>
+                <p className="text-gray-600">Matériel dernier cri pour des entraînements optimaux et sécurisés.</p>
+                <div className="mt-4">
+                  <span className="inline-flex items-center text-green-600 font-medium group-hover:underline">
+                    Découvrir
+                    <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </span>
+                </div>
               </div>
-              <h4 className="text-xl font-semibold mb-2">Équipements Modernes</h4>
-              <p className="text-gray-600">Matériel de dernière génération régulièrement renouvelé</p>
             </div>
 
-            <div className="text-center">
-              <div className="bg-purple-100 rounded-full p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                <Clock className="h-10 w-10 text-purple-600 animated-logo" />
+            <div className="group relative p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 to-white opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="w-20 h-20 mx-auto mb-6 bg-purple-100 rounded-2xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
+                  <Clock className="h-10 w-10 text-purple-600" />
+                </div>
+                <h4 className="text-xl font-bold text-gray-900 mb-3">Horaires Flexibles</h4>
+                <p className="text-gray-600">Ouvert 7j/7 pour s'adapter à votre emploi du temps chargé.</p>
+                <div className="mt-4">
+                  <span className="inline-flex items-center text-purple-600 font-medium group-hover:underline">
+                    Voir les horaires
+                    <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </span>
+                </div>
               </div>
-              <h4 className="text-xl font-semibold mb-2">Horaires Flexibles</h4>
-              <p className="text-gray-600">Ouvert 7j/7 avec des créneaux adaptés à votre emploi du temps</p>
             </div>
 
-            <div className="text-center">
-              <div className="bg-orange-100 rounded-full p-6 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                <CheckCircle className="h-10 w-10 text-orange-600 animated-logo" />
+            <div className="group relative p-8 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-2">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-white opacity-0 group-hover:opacity-100 rounded-xl transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="w-20 h-20 mx-auto mb-6 bg-orange-100 rounded-2xl flex items-center justify-center transform group-hover:scale-110 transition-transform duration-300">
+                  <CheckCircle className="h-10 w-10 text-orange-600" />
+                </div>
+                <h4 className="text-xl font-bold text-gray-900 mb-3">Résultats Garantis</h4>
+                <p className="text-gray-600">Suivi personnalisé pour des progrès visibles et durables.</p>
+                <div className="mt-4">
+                  <span className="inline-flex items-center text-orange-600 font-medium group-hover:underline">
+                    Nos résultats
+                    <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </span>
+                </div>
               </div>
-              <h4 className="text-xl font-semibold mb-2">Résultats Garantis</h4>
-              <p className="text-gray-600">Suivi personnalisé pour des résultats visibles et durables</p>
             </div>
           </div>
         </div>
@@ -656,13 +738,16 @@ export default function HomePage() {
               <Card key={index} className="hover:shadow-lg transition-shadow border-0 shadow-md">
                 <CardContent className="pt-6">
                   <div className="text-center mb-4">
-                    <img
-                      src={testimonial.image || "/placeholder.svg"}
-                      alt={testimonial.name}
-                      className="w-16 h-16 rounded-full mx-auto mb-3"
-                    />
-                    <h4 className="font-semibold text-lg">{testimonial.name}</h4>
-                    <div className="flex justify-center space-x-1 mt-2">{renderStars(testimonial.rating)}</div>
+                    <div className="relative w-20 h-20 mx-auto mb-3">
+                      <img
+                        src={testimonial.image || "/placeholder.svg"}
+                        alt={testimonial.name}
+                        className="w-full h-full rounded-full object-cover border-2 border-blue-100"
+                      />
+                    </div>
+                    <h4 className="font-bold text-lg text-gray-900">{testimonial.name}</h4>
+                    <p className="text-sm text-gray-500 mb-2">{testimonial.poste}</p>
+                    <div className="flex justify-center space-x-1">{renderStars(testimonial.rating)}</div>
                   </div>
                   <p className="text-gray-600 text-center italic">"{testimonial.comment}"</p>
                 </CardContent>
@@ -673,104 +758,64 @@ export default function HomePage() {
       </section>
 
       {/* Pricing Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h3 className="text-4xl font-bold text-gray-900 mb-4">Nos Tarifs</h3>
+            <Badge variant="outline" className="mb-4 bg-blue-50 text-blue-600 border-blue-200 text-sm font-medium">
+              Nos Offres
+            </Badge>
+            <h3 className="text-4xl font-bold text-gray-900 mb-4">Choisissez Votre Formule</h3>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Choisissez l'abonnement qui correspond à vos besoins et votre budget
+              Des abonnements adaptés à tous les objectifs et à tous les budgets
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card className="hover:shadow-lg transition-shadow border-0 shadow-md">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Découverte</CardTitle>
-                <div className="text-4xl font-bold text-blue-600 mt-4">
-                  15,000 <span className="text-lg text-gray-600">FCFA</span>
-                </div>
-                <p className="text-gray-600">Par mois</p>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Accès salle de musculation
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Zone cardio
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Vestiaires et douches
-                  </li>
-                </ul>
-                <Button className="w-full mt-6 bg-blue-600 hover:bg-blue-700">Choisir ce plan</Button>
-              </CardContent>
-            </Card>
+            {abonnements.map((abonnement, index) => (
+              <div key={abonnement.id} className="relative">
+                {index === 1 && (
+                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                    <Badge className="bg-blue-600 text-white px-4 py-1 text-sm font-medium">
+                      Le plus populaire
+                    </Badge>
+                  </div>
+                )}
+                <Card className={`h-full flex flex-col transition-all duration-300 hover:shadow-xl ${
+                  index === 1 ? 'border-2 border-blue-500 transform scale-105' : 'border border-gray-200'
+                }`}>
+                  <CardHeader className="text-center pb-2">
+                    <CardTitle className="text-2xl font-bold text-gray-800">{abonnement.nom}</CardTitle>
+                    <div className="mt-4">
+                      <span className="text-4xl font-extrabold text-blue-600">
+                        {new Intl.NumberFormat('fr-FR').format(abonnement.prix)}
+                      </span>
+                      <span className="text-gray-500 ml-1">FCFA</span>
+                      <p className="text-sm text-gray-500 mt-1">pour {abonnement.duree_jours} jours</p>
+                    </div>
+                    <p className="text-gray-600 mt-2 text-sm">{abonnement.description}</p>
+                  </CardHeader>
+                  <CardContent className="pt-2 flex-grow">
+                    <ul className="space-y-3 mb-6">
+                      {abonnement.avantages.map((avantage, i) => (
+                        <li key={i} className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 mr-2 flex-shrink-0" />
+                          <span className="text-gray-700">{avantage}</span>
+                        </li>
+                      ))}
+                    </ul>
+                   
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
+          </div>
 
-            <Card className="hover:shadow-lg transition-shadow border-2 border-blue-600 shadow-lg relative">
-              <Badge className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-600">Populaire</Badge>
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Premium</CardTitle>
-                <div className="text-4xl font-bold text-blue-600 mt-4">
-                  25,000 <span className="text-lg text-gray-600">FCFA</span>
-                </div>
-                <p className="text-gray-600">Par mois</p>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Tout du plan Découverte
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Cours collectifs illimités
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />1 séance coaching/mois
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Accès piscine
-                  </li>
-                </ul>
-                <Button className="w-full mt-6 bg-blue-600 hover:bg-blue-700">Choisir ce plan</Button>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow border-0 shadow-md">
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">VIP</CardTitle>
-                <div className="text-4xl font-bold text-blue-600 mt-4">
-                  40,000 <span className="text-lg text-gray-600">FCFA</span>
-                </div>
-                <p className="text-gray-600">Par mois</p>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Tout du plan Premium
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Coaching personnel illimité
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Accès spa et sauna
-                  </li>
-                  <li className="flex items-center">
-                    <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                    Programme nutrition
-                  </li>
-                </ul>
-                <Button className="w-full mt-6 bg-blue-600 hover:bg-blue-700">Choisir ce plan</Button>
-              </CardContent>
-            </Card>
+          <div className="mt-12 text-center">
+            <p className="text-gray-600 mb-4">Vous avez des questions sur nos abonnements ?</p>
+            <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Nous contacter
+            </Button>
           </div>
         </div>
       </section>
@@ -793,14 +838,14 @@ export default function HomePage() {
                   <MapPin className="h-6 w-6 text-blue-600 mr-4" />
                   <div>
                     <div className="font-semibold">Adresse</div>
-                    <div className="text-gray-600">Cocody, Riviera Golf, Abidjan, Côte d'Ivoire</div>
+                    <div className="text-gray-600">Yaounde , Cameroun</div>
                   </div>
                 </div>
                 <div className="flex items-center">
                   <Phone className="h-6 w-6 text-blue-600 mr-4" />
                   <div>
                     <div className="font-semibold">Téléphone</div>
-                    <div className="text-gray-600">+225 27 22 XX XX XX</div>
+                    <div className="text-gray-600">+237 6XXXXXXXX</div>
                   </div>
                 </div>
                 <div className="flex items-center">
@@ -870,15 +915,7 @@ export default function HomePage() {
               </div>
               <p className="text-gray-400 mb-4">Votre partenaire fitness pour une vie plus saine et plus active.</p>
               <div className="flex space-x-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-bold">f</span>
-                </div>
-                <div className="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-bold">t</span>
-                </div>
-                <div className="w-8 h-8 bg-pink-600 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-bold">i</span>
-                </div>
+                
               </div>
             </div>
 
@@ -937,16 +974,15 @@ export default function HomePage() {
             <div>
               <h5 className="text-lg font-semibold mb-4">Contact</h5>
               <div className="space-y-2 text-gray-400">
-                <p>Cocody, Riviera Golf</p>
-                <p>Abidjan, Côte d'Ivoire</p>
-                <p>+225 27 22 XX XX XX</p>
+                <p>Yaounde , Cameroun</p>
+                <p>+237 6 XX XX XX</p>
                 <p>contact@gymzone.ci</p>
               </div>
             </div>
           </div>
 
           <div className="border-t border-gray-800 mt-8 pt-8 text-center">
-            <p className="text-gray-400">© 2024 GYM ZONE. Tous droits réservés.</p>
+            <p className="text-gray-400">©  GYMZONE</p>
           </div>
         </div>
       </footer>

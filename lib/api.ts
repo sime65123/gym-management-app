@@ -21,6 +21,13 @@ interface RegisterData {
   password: string
 }
 
+interface PersonnelInfo {
+  id: number
+  nom: string
+  prenom: string
+  categorie: string
+}
+
 interface User {
   telephone: string
   id: number
@@ -28,6 +35,8 @@ interface User {
   nom: string
   prenom: string
   role: "ADMIN" | "EMPLOYE" | "CLIENT"
+  personnel?: PersonnelInfo
+  solde?: number
 }
 
 interface ApiResponse<T> {
@@ -169,7 +178,7 @@ export interface PaiementTranche {
 }
 
 class ApiClient {
-  private getAuthHeaders() {
+  private getAuthHeaders(): { [key: string]: string } {
     const token = localStorage.getItem("access_token")
     return {
       "Content-Type": "application/json",
@@ -219,6 +228,43 @@ class ApiClient {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse<User>(response)
+  }
+
+  // Tickets
+  async getTickets(): Promise<Ticket[]> {
+    return this.handleResponse(
+      await fetch(`${API_BASE_URL}/tickets/`, {
+        headers: this.getAuthHeaders(),
+      })
+    )
+  }
+
+  // Récupérer les tickets pour une réservation spécifique
+  async getTicketsByReservation(reservationId: number): Promise<Ticket[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/tickets/by-reservation/${reservationId}/`, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erreur lors de la récupération des tickets: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Données des tickets reçues:', data);
+      
+      // Gérer à la fois les formats de réponse possibles
+      if (Array.isArray(data)) {
+        return data;
+      } else if (data && Array.isArray(data.results)) {
+        return data.results;
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Erreur lors de la récupération des tickets:', error);
+      throw error;
+    }
   }
 
   async updateProfile(userData: Partial<User> & { currentPassword?: string; newPassword?: string }): Promise<User> {
@@ -291,59 +337,95 @@ class ApiClient {
 
   async createUser(userData: any) {
     try {
-      const url = `${API_BASE_URL}/users/`
-      const headers = {
-        ...this.getAuthHeaders(),
-        'Content-Type': 'application/json'
+      // Créer une copie des données pour éviter les effets de bord
+      const requestData = { ...userData };
+      
+      // Forcer le type de rôle à être une chaîne valide
+      if (requestData.role && typeof requestData.role === 'string') {
+        requestData.role = requestData.role.toUpperCase();
+      } else {
+        requestData.role = 'CLIENT';
       }
       
-      console.log('Envoi des données utilisateur au serveur:', {
-        url,
-        method: 'POST',
-        headers,
-        body: userData
-      })
+      // S'assurer que le mot de passe est une chaîne
+      if (requestData.password === undefined || requestData.password === null) {
+        requestData.password = ''; // Le backend devrait gérer la validation
+      }
+      
+      const url = `${API_BASE_URL}/users/`;
+      const headers = {
+        ...this.getAuthHeaders(),
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      };
+      
+      // Log des données avant envoi
+      console.log('======= DONNÉES UTILISATEUR AVANT ENVOI =======');
+      console.log('URL:', url);
+      console.log('Méthode: POST');
+      console.log('En-têtes:', headers);
+      console.log('Données brutes:', userData);
+      console.log('Données traitées:', requestData);
+      console.log('Rôle dans les données traitées:', requestData.role);
+      console.log('Corps de la requête (stringifié):', JSON.stringify(requestData, null, 2));
       
       const response = await fetch(url, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify(userData),
-      })
+        body: JSON.stringify(requestData),
+      });
 
-      console.log('Réponse du serveur:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      })
+      // Log de la réponse brute
+      console.log('======= RÉPONSE DU SERVEUR =======');
+      console.log('Statut:', response.status, response.statusText);
+      console.log('En-têtes:', Object.fromEntries(response.headers.entries()));
+      
+      // Lire le corps de la réponse une seule fois
+      const responseText = await response.text();
+      let responseData: any = {};
+      
+      try {
+        if (responseText) {
+          responseData = JSON.parse(responseText);
+          console.log('Corps de la réponse (JSON):', responseData);
+          console.log('Rôle dans la réponse:', responseData.role);
+        }
+      } catch (e) {
+        console.error('Erreur lors du parsing de la réponse JSON:', e);
+        console.log('Corps de la réponse (texte brut):', responseText);
+      }
 
       if (!response.ok) {
-        let errorData
-        try {
-          errorData = await response.json()
-          console.error('Erreur du serveur:', errorData)
-        } catch (e) {
-          const text = await response.text()
-          console.error('Erreur lors de la lecture de la réponse d\'erreur:', e, 'Réponse brute:', text)
-          throw new Error(`Erreur ${response.status}: ${response.statusText}`)
+        console.error('======= ERREUR DU SERVEUR =======');
+        console.error('Statut:', response.status, response.statusText);
+        
+        // Utiliser responseData déjà parsé
+        const errorData = responseData || {};
+        console.error('Détails de l\'erreur:', errorData);
+        
+        // Vérifier si le rôle est présent dans la réponse d'erreur
+        if (errorData.role) {
+          console.error('Rôle dans la réponse d\'erreur:', errorData.role);
         }
         
         // Gestion des erreurs de validation
         if (response.status === 400) {
-          const errorMessages = []
+          const errorMessages = [];
           for (const [field, errors] of Object.entries(errorData)) {
             if (Array.isArray(errors)) {
-              errorMessages.push(`${field}: ${errors.join(', ')}`)
+              errorMessages.push(`${field}: ${errors.join(', ')}`);
             } else {
-              errorMessages.push(`${field}: ${errors}`)
+              errorMessages.push(`${field}: ${errors}`);
             }
           }
-          throw new Error(errorMessages.join('\n'))
+          throw new Error(errorMessages.join('\n'));
         }
         
-        throw new Error(errorData.detail || errorData.message || `Erreur lors de la création de l'utilisateur (${response.status} ${response.statusText})`)
+        throw new Error(errorData.detail || errorData.message || `Erreur lors de la création de l'utilisateur (${response.status} ${response.statusText})`);
       }
 
-      return await response.json()
+      // Retourner les données déjà parsées
+      return responseData;
     } catch (error) {
       console.error('Erreur dans createUser:', error)
       throw error
@@ -490,11 +572,25 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  async createReservation(data: { date_heure_souhaitee: string; nombre_heures: number; description?: string }) {
+  async createReservation(data: { 
+    date_heure_souhaitee: string; 
+    nombre_heures: number; 
+    description?: string;
+    montant: number;
+    type_ticket: string;
+    statut?: string;
+  }) {
     const response = await fetch(`${API_BASE_URL}/reservations/`, {
       method: "POST",
       headers: this.getAuthHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        date_heure_souhaitee: data.date_heure_souhaitee,
+        nombre_heures: data.nombre_heures,
+        description: data.description || "",
+        montant: data.montant,
+        type_ticket: data.type_ticket,
+        statut: data.statut || 'EN_ATTENTE'
+      }),
     })
     return this.handleResponse(response)
   }
@@ -563,13 +659,7 @@ class ApiClient {
     return this.handleResponse(response)
   }
 
-  // Tickets (remplace Factures)
-  async getTickets(): Promise<ApiResponse<Ticket>> {
-    const response = await fetch(`${API_BASE_URL}/tickets/`, {
-      headers: this.getAuthHeaders(),
-    })
-    return this.handleResponse<ApiResponse<Ticket>>(response)
-  }
+  // La méthode getTickets est déjà définie plus haut, cette déclaration en double est supprimée
 
   async downloadTicketPDF(ticketId: number) {
     const response = await fetch(`${API_BASE_URL}/tickets/${ticketId}/`, {
@@ -783,13 +873,7 @@ class ApiClient {
     return this.handleResponse<Seance>(response)
   }
 
-  async getTicketsByReservation(reservationId: number): Promise<Ticket[]> {
-    const response = await fetch(`${API_BASE_URL}/tickets/?reservation=${reservationId}`, {
-      headers: this.getAuthHeaders(),
-    })
-    const data = await this.handleResponse<ApiResponse<Ticket>>(response)
-    return data.results || []
-  }
+  // La méthode getTicketsByReservation est déjà définie plus haut, cette déclaration en double est supprimée
 
   async validerReservation(reservationId: number) {
     const response = await fetch(`${API_BASE_URL}/reservations/${reservationId}/valider/`, {

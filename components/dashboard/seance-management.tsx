@@ -333,14 +333,6 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                         ) : (
                           <span className="text-sm text-muted-foreground">Pas de ticket</span>
                         )}
-                        <ConfirmDeleteButton
-                          onDelete={() => handleDeleteSeance(seance.id)}
-                          confirmMessage={`Êtes-vous sûr de vouloir supprimer la séance du ${formatDate(seance.date_jour)} avec ${seance.client_prenom} ${seance.client_nom} ?`}
-                        >
-                          <Button variant="ghost" size="icon" title="Supprimer la séance">
-                            <X className="h-4 w-4 text-red-600 hover:text-red-800" />
-                          </Button>
-                        </ConfirmDeleteButton>
                       </div>
                     </TableCell>
                   </TableRow>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,11 @@ import { useAuth } from "@/components/auth/auth-context"
 import { apiClient } from "@/lib/api"
 import { useToast } from "@/components/ui/use-toast"
 
-export function ProfileManagement() {
+interface ProfileManagementProps {
+  onUpdate?: () => void;
+}
+
+export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
   const { user, refreshUser } = useAuth()
   const { toast } = useToast()
   console.log('USER PROFILE:', user)
@@ -22,14 +26,28 @@ export function ProfileManagement() {
   const [success, setSuccess] = useState("")
   const [error, setError] = useState("")
   const [formData, setFormData] = useState({
-    nom: user?.nom || "",
-    prenom: user?.prenom || "",
-    email: user?.email || "",
-    telephone: user?.telephone || "",
+    nom: "",
+    prenom: "",
+    email: "",
+    telephone: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   })
+
+  // Mettre à jour le formulaire lorsque l'utilisateur change
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        nom: user.nom || "",
+        prenom: user.prenom || "",
+        email: user.email || "",
+        telephone: user.telephone || "",
+        // Ne pas réinitialiser les champs de mot de passe
+      }))
+    }
+  }, [user])
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -76,8 +94,13 @@ export function ProfileManagement() {
       // Mettre à jour l'utilisateur dans le contexte d'authentification
       await refreshUser()
       
+      // Appeler la fonction de rappel pour mettre à jour la liste des utilisateurs
+      if (onUpdate) {
+        onUpdate();
+      }
+      
       // Mettre à jour le formulaire avec les nouvelles données
-      setFormData({
+      const updatedFormData = {
         ...formData,
         nom: updatedUser.nom || formData.nom,
         prenom: updatedUser.prenom || formData.prenom,
@@ -86,7 +109,9 @@ export function ProfileManagement() {
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
-      })
+      }
+      
+      setFormData(updatedFormData)
       
       // Afficher le toast de succès
       toast({
@@ -171,7 +196,6 @@ export function ProfileManagement() {
                 {user.prenom} {user.nom}
                 {user.personnel && typeof user.personnel === 'object' && (
                   <span className="ml-2 text-sm text-gray-500">
-                    {/* Affichage détaillé si jamais user.personnel existe */}
                     {user.personnel.prenom} {user.personnel.nom} ({user.personnel.categorie})
                   </span>
                 )}
