@@ -59,6 +59,7 @@ export function PresenceManagement() {
     heure_arrivee: "",
   })
   const { toast } = useToast()
+  const [groupedPresences, setGroupedPresences] = useState<{[key: string]: Presence[]}>({})
 
   useEffect(() => {
     loadPresences()
@@ -68,8 +69,27 @@ export function PresenceManagement() {
   const loadPresences = async () => {
     try {
       const response = await apiClient.getPresences()
-      console.log("API presences", response)
-      setPresences([...(response.results || response)])
+      const allPresences = response.results || response
+      
+      // Grouper les présences par date
+      const grouped = allPresences.reduce((acc: {[key: string]: Presence[]}, presence: Presence) => {
+        const date = presence.date_jour
+        if (!acc[date]) {
+          acc[date] = []
+        }
+        acc[date].push(presence)
+        return acc
+      }, {})
+      
+      // Trier les dates par ordre décroissant (plus récent en premier)
+      const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+      const sortedGrouped: {[key: string]: Presence[]} = {}
+      sortedDates.forEach(date => {
+        sortedGrouped[date] = grouped[date]
+      })
+      
+      setGroupedPresences(sortedGrouped)
+      setPresences(allPresences) // Garder la liste complète pour les stats
     } catch (error) {
       console.error("Erreur lors du chargement des présences:", error)
     } finally {
@@ -88,22 +108,27 @@ export function PresenceManagement() {
 
   const handleCreatePresence = async () => {
     try {
-      await apiClient.createPresence(formData)
-      setIsCreateDialogOpen(false)
-      resetForm()
-      loadPresences()
+      let data = { ...formData };
+      if (presenceType === "personnel") {
+        data = { ...data, personnel_id: selectedPersonnel };
+      }
+      const response = await apiClient.createPresence(data);
+      console.log("Réponse création présence:", response);
+      setIsCreateDialogOpen(false);
+      resetForm();
+      loadPresences();
       toast({
         title: "Ajout réussi",
         description: "La présence a été ajoutée.",
         duration: 5000,
-      })
+      });
     } catch (error) {
       toast({
         title: "Erreur",
         description: "L'ajout a échoué.",
         variant: "destructive",
         duration: 5000,
-      })
+      });
     }
   }
 
@@ -243,7 +268,7 @@ export function PresenceManagement() {
               <CardDescription>Enregistrez et suivez la présence du personnel et des employés</CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={loadPresences} title="Actualiser la liste">
+              <Button variant="outline" onClick={() => loadPresences()} title="Actualiser la liste">
                 <RotateCcw className="h-4 w-4" />
               </Button>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -349,66 +374,86 @@ export function PresenceManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {presences.map((presence) => (
-                <TableRow key={presence.id}>
-                  <TableCell className="font-medium">
-                    {presence.personnel ? (
-                      <>
-                        <User className="h-4 w-4 mr-2 inline" />
-                        {presence.personnel.prenom} {presence.personnel.nom}
-                      </>
-                    ) : (
-                      <>
-                        <User className="h-4 w-4 mr-2 inline" />
-                        {presence.employe?.prenom} {presence.employe?.nom}
-                      </>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {presence.personnel ? "Personnel" : "Employé"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-2" />
-                      {new Date(presence.date_jour).toLocaleDateString("fr-FR")}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={presence.statut === "PRESENT" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                      {presence.statut === "PRESENT" ? (
-                        <>
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Présent
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="h-3 w-3 mr-1" />
-                          Absent
-                        </>
-                      )}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{presence.heure_arrivee || "-"}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => openEditDialog(presence)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <ConfirmDeleteButton onDelete={() => handleDeletePresence(presence.id)}>
-                          <span className="flex items-center"><Trash2 className="h-4 w-4" /></span>
-                        </ConfirmDeleteButton>
-                      </Button>
-                    </div>
+              {Object.keys(groupedPresences).length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center">
+                    Aucune présence enregistrée
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                Object.entries(groupedPresences).map(([date, dayPresences]) => (
+                  <>
+                    {/* Séparateur de date */}
+                    <TableRow key={`date-${date}`} className="bg-gray-50">
+                      <TableCell colSpan={6} className="text-center font-semibold text-gray-700 py-3">
+                        <div className="flex items-center justify-center">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Jour {new Date(date).toLocaleDateString("fr-FR")}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {/* Présences du jour */}
+                    {dayPresences.map((presence) => (
+                      <TableRow key={presence.id}>
+                        <TableCell className="font-medium">
+                          {presence.personnel ? (
+                            <>
+                              <User className="h-4 w-4 mr-2 inline" />
+                              {presence.personnel.prenom} {presence.personnel.nom}
+                            </>
+                          ) : (
+                            <>
+                              <User className="h-4 w-4 mr-2 inline" />
+                              {presence.employe?.prenom} {presence.employe?.nom}
+                            </>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {presence.personnel ? "Personnel" : "Employé"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            <Calendar className="h-4 w-4 mr-2" />
+                            {new Date(presence.date_jour).toLocaleDateString("fr-FR")}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={presence.statut === "PRESENT" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                            {presence.statut === "PRESENT" ? (
+                              <>
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                Présent
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-3 w-3 mr-1" />
+                                Absent
+                              </>
+                            )}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{presence.heure_arrivee || "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openEditDialog(presence)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <ConfirmDeleteButton onDelete={() => handleDeletePresence(presence.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </ConfirmDeleteButton>
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                ))
+              )}
             </TableBody>
           </Table>
-
-          {presences.length === 0 && <div className="text-center py-8 text-gray-500">Aucune présence enregistrée</div>}
 
           {/* Edit Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

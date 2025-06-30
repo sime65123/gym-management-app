@@ -10,11 +10,17 @@ import { apiClient } from "@/lib/api"
 
 interface PresenceRapport {
   id: number
-  personnel: {
+  personnel?: {
     id: number
     nom: string
     prenom: string
     categorie: string
+  }
+  employe?: {
+    id: number
+    nom: string
+    prenom: string
+    email: string
   }
   statut: "PRESENT" | "ABSENT"
   heure_arrivee: string
@@ -197,11 +203,11 @@ export function RapportPresence() {
                 presences.map((presence) => (
                   <TableRow key={presence.id}>
                     <TableCell className="font-medium">
-                      {presence.personnel.prenom} {presence.personnel.nom}
+                      {presence.personnel?.prenom} {presence.personnel?.nom}
                     </TableCell>
                     <TableCell>
-                      <Badge className={getCategorieBadgeColor(presence.personnel.categorie)}>
-                        {getCategorieLabel(presence.personnel.categorie)}
+                      <Badge className={getCategorieBadgeColor(presence.personnel?.categorie || "")}>
+                        {getCategorieLabel(presence.personnel?.categorie || "")}
                       </Badge>
                     </TableCell>
                     <TableCell>{getStatutBadge(presence.statut)}</TableCell>

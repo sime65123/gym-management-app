@@ -627,7 +627,7 @@ class ApiClient {
 
   // Présence Personnel
   async getPresences() {
-    const response = await fetch(`${API_BASE_URL}/presences/`, {
+    const response = await fetch(`${API_BASE_URL}/presences/?page_size=1000`, {
       headers: this.getAuthHeaders(),
     })
     return this.handleResponse(response)
