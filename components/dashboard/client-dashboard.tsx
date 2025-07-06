@@ -539,35 +539,6 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                 </CardContent>
               </Card>
             </div>
-            
-            {/* Bannière d'information */}
-            <div className="relative rounded-lg overflow-hidden bg-gradient-to-r from-purple-600 to-blue-600 text-white p-8">
-              <div className="relative z-10 max-w-2xl">
-                <h3 className="text-2xl font-bold mb-2">Besoin d'aide ?</h3>
-                <p className="text-purple-100 mb-6">
-                  Nos équipes sont là pour vous accompagner dans vos réservations. 
-                  Contactez-nous pour toute question ou assistance.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <Button 
-                    variant="outline" 
-                    className="bg-white/20 hover:bg-white/30 border-white/30 text-white"
-                  >
-                    <Users className="mr-2 h-4 w-4" />
-                    Contacter le support
-                  </Button>
-                <Button 
-                    variant="outline" 
-                    className="bg-white/20 hover:bg-white/30 border-white/30 text-white"
-                    onClick={() => setActiveTab("tickets")}
-                  >
-                    <Ticket className="mr-2 h-4 w-4" />
-                    Voir mes réservations
-                </Button>
-                </div>
-              </div>
-              <Dumbbell className="absolute right-8 top-1/2 -translate-y-1/2 h-32 w-32 opacity-20" />
-            </div>
           </TabsContent>
           
           {/* Contenu de l'onglet Tickets */}
