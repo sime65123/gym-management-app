@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Download, RotateCcw, Euro, FileText, Trash2, Edit, Calendar } from "lucide-react"
-import { apiClient, type User, type Abonnement, type AbonnementClientPresentiel, type HistoriquePaiement } from "@/lib/api"
+import { Plus, Download, RotateCcw, Euro, FileText, Trash2, Edit, Calendar, DollarSign } from "lucide-react"
+import { apiClient, type Abonnement, type AbonnementClientPresentiel, type FactureResponse } from "@/lib/api"
 import { useToast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useAuth } from "@/components/auth/auth-context"
 
 export function AbonnementClientManagement() {
   const [abonnementsClients, setAbonnementsClients] = useState<AbonnementClientPresentiel[]>([])
@@ -38,7 +39,13 @@ export function AbonnementClientManagement() {
     date_fin: "",
   })
   const [montantModification, setMontantModification] = useState("")
+  const [search, setSearch] = useState("")
   const { toast } = useToast()
+  const { user } = useAuth()
+
+  // Vérifier si l'utilisateur est employé
+  const isEmployee = user?.role === "EMPLOYE"
+  const isAdmin = user?.role === "ADMIN"
 
   useEffect(() => {
     loadData()
@@ -47,10 +54,13 @@ export function AbonnementClientManagement() {
 
   const loadData = async () => {
     try {
-      const abonnementsData = await apiClient.getAbonnements()
-      setAbonnements(Array.isArray(abonnementsData.results) ? abonnementsData.results : abonnementsData)
+      const abonnementsData = await apiClient.getAbonnements() as { results: Abonnement[] } | Abonnement[]
+      const abonnementsList = Array.isArray(abonnementsData) ? abonnementsData : 
+                            (Array.isArray(abonnementsData?.results) ? abonnementsData.results : [])
+      setAbonnements(abonnementsList)
     } catch (error) {
       console.error("Erreur lors du chargement des données:", error)
+      setAbonnements([])
     } finally {
       setLoading(false)
     }
@@ -58,9 +68,12 @@ export function AbonnementClientManagement() {
 
   const loadAbonnementsClients = async () => {
     try {
-      const abonnementsClientsData = await apiClient.getAbonnementsClientsPresentiels()
-      setAbonnementsClients(Array.isArray(abonnementsClientsData.results) ? abonnementsClientsData.results : abonnementsClientsData)
+      const abonnementsClientsData = await apiClient.getAbonnementsClientsPresentiels() as { results: AbonnementClientPresentiel[] } | AbonnementClientPresentiel[]
+      const clientsList = Array.isArray(abonnementsClientsData) ? abonnementsClientsData : 
+                        (Array.isArray(abonnementsClientsData?.results) ? abonnementsClientsData.results : [])
+      setAbonnementsClients(clientsList)
     } catch (error) {
+      console.error("Erreur lors du chargement des abonnements clients:", error)
       setAbonnementsClients([])
     }
   }
@@ -77,29 +90,61 @@ export function AbonnementClientManagement() {
 
   const handleCreateAbonnementClient = async () => {
     try {
+      // Vérifier que les champs requis sont remplis
+      if (!formData.client_nom || !formData.client_prenom || !formData.abonnement) {
+        throw new Error('Veuillez remplir tous les champs obligatoires');
+      }
+      
+      // Créer l'objet d'abonnement avec les données du formulaire
       const dataToSend = {
         client_nom: formData.client_nom,
         client_prenom: formData.client_prenom,
-        abonnement: formData.abonnement,
+        abonnement: Number(formData.abonnement),
         date_debut: formData.date_debut,
-      }
-      await apiClient.createAbonnementClientPresentiel(dataToSend)
-      loadAbonnementsClients()
-      setIsCreateDialogOpen(false)
-      setFormData({ client_nom: "", client_prenom: "", abonnement: "", date_debut: new Date().toISOString().split('T')[0], date_fin: "" })
-      loadData()
+        montant_paye: 0,
+        statut_paiement: 'PAIEMENT_INACHEVE',
+        statut: 'EN_COURS'
+      };
+
+      // Envoyer les données au serveur
+      await apiClient.createAbonnementClientPresentiel(dataToSend);
+      loadAbonnementsClients();
+      setIsCreateDialogOpen(false);
+      setFormData({ 
+        client_nom: "", 
+        client_prenom: "", 
+        abonnement: "", 
+        date_debut: new Date().toISOString().split('T')[0], 
+        date_fin: "" 
+      });
+      loadData();
+      
       toast({
         title: "Ajout réussi",
         description: "L'abonnement client a été enregistré.",
         duration: 5000,
-      })
-    } catch (error) {
+      });
+    } catch (error: any) {
+      console.error('Error creating client subscription:', error);
+      let errorMessage = "L'ajout a échoué.";
+      
+      if (error.response) {
+        try {
+          const errorData = await error.response.json();
+          errorMessage = errorData.detail || error.message || errorMessage;
+        } catch (e) {
+          errorMessage = error.message || errorMessage;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "L'ajout a échoué.",
+        description: errorMessage,
         variant: "destructive",
         duration: 5000,
-      })
+      });
     }
   }
 
@@ -130,15 +175,26 @@ export function AbonnementClientManagement() {
   }
 
   const openEditDialog = (abonnement: AbonnementClientPresentiel) => {
-    setSelectedAbonnement(abonnement)
+    // Vérifier si un paiement a déjà été effectué
+    if (abonnement.montant_paye > 0) {
+      toast({
+        title: "Modification impossible",
+        description: "La modification n'est pas autorisée car un paiement a déjà été enregistré pour cet abonnement.",
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+    
+    setSelectedAbonnement(abonnement);
     setEditFormData({
       client_nom: abonnement.client_nom,
       client_prenom: abonnement.client_prenom,
       abonnement: abonnement.abonnement.toString(),
       date_debut: abonnement.date_debut,
       date_fin: abonnement.date_fin,
-    })
-    setIsEditDialogOpen(true)
+    });
+    setIsEditDialogOpen(true);
   }
 
   const handleModifierMontantPaye = async () => {
@@ -202,11 +258,11 @@ export function AbonnementClientManagement() {
 
   const handleGenererFacture = async (abonnement: AbonnementClientPresentiel) => {
     try {
-      const res = await apiClient.genererFactureAbonnementPresentiel(abonnement.id)
+      const res = await apiClient.genererFactureAbonnementPresentiel(abonnement.id) as FactureResponse
       loadAbonnementsClients()
       toast({
         title: "Facture générée",
-        description: "La facture a été générée.",
+        description: res.message || "La facture a été générée.",
         duration: 5000,
       })
       if (res.facture_url) {
@@ -224,23 +280,27 @@ export function AbonnementClientManagement() {
 
   const handleTelechargerFacture = async (abonnement: AbonnementClientPresentiel) => {
     try {
-      const blob = await apiClient.telechargerFactureAbonnementPresentiel(abonnement.id)
+      const response = await apiClient.telechargerFactureAbonnementPresentiel(abonnement.id)
       
-      // Créer un lien de téléchargement
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `facture_abonnement_${abonnement.id}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      
-      toast({
-        title: "Téléchargement réussi",
-        description: "La facture a été téléchargée.",
-        duration: 5000,
-      })
+      if (response instanceof Blob) {
+        // Créer un lien de téléchargement
+        const url = window.URL.createObjectURL(response)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `facture_abonnement_${abonnement.id}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+        
+        toast({
+          title: "Téléchargement réussi",
+          description: "La facture a été téléchargée.",
+          duration: 5000,
+        })
+      } else {
+        throw new Error("Format de réponse inattendu lors du téléchargement de la facture")
+      }
     } catch (error: any) {
       toast({
         title: "Erreur",
@@ -250,6 +310,12 @@ export function AbonnementClientManagement() {
       })
     }
   }
+
+  const filteredAbonnements = abonnementsClients.filter((ab) => {
+    const nom = ab.client_nom?.toLowerCase() || "";
+    const prenom = ab.client_prenom?.toLowerCase() || "";
+    return nom.includes(search.toLowerCase()) || prenom.includes(search.toLowerCase());
+  });
 
   if (loading) {
     return <div className="flex justify-center p-8">Chargement...</div>
@@ -262,20 +328,37 @@ export function AbonnementClientManagement() {
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>Abonnements Clients Présentiels</CardTitle>
-              <CardDescription>Enregistrez les abonnements des clients venus sur place, modifiez les montants payés et générez les factures.</CardDescription>
+              <CardDescription>
+                {isEmployee 
+                  ? "Enregistrez les abonnements des clients venus sur place, modifiez les montants payés et générez les factures." 
+                  : "Consultez les abonnements des clients venus sur place."
+                }
+              </CardDescription>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={loadData} title="Actualiser la liste">
                 <RotateCcw className="h-4 w-4" />
               </Button>
+              {isEmployee && (
               <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nouvel abonnement client
               </Button>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          {/* Champ de recherche */}
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder="Rechercher par nom ou prénom du client..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -288,11 +371,11 @@ export function AbonnementClientManagement() {
                 <TableHead>Montant total</TableHead>
                 <TableHead>Statut paiement</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead>Actions</TableHead>
+                {isEmployee && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {abonnementsClients.map((abClient) => (
+              {filteredAbonnements.map((abClient) => (
                 <TableRow key={abClient.id}>
                   <TableCell>{abClient.client_prenom || "-"}</TableCell>
                   <TableCell>{abClient.client_nom || "-"}</TableCell>
@@ -313,20 +396,38 @@ export function AbonnementClientManagement() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
+                      {/* Boutons pour les employés seulement */}
+                      {isEmployee && (
+                        <>
                       <Button size="sm" variant="outline" onClick={() => openEditDialog(abClient)} title="Modifier l'abonnement">
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => { setHistoriqueAbonnement(abClient); setIsHistoriqueDialogOpen(true); }} title="Historique paiements">
+                          <Button size="sm" variant="outline" onClick={() => { setHistoriqueAbonnement(abClient); setIsHistoriqueDialogOpen(true); }} title="Historique paiements" disabled={abClient.statut_paiement === 'PAIEMENT_TERMINE'}>
                         <FileText className="h-4 w-4" />
                       </Button>
+                        </>
+                      )}
+                      
+                      {/* Boutons pour tous les utilisateurs (admin et employé) */}
                       {abClient.facture_pdf_url && (
                         <Button size="sm" variant="outline" onClick={() => handleTelechargerFacture(abClient)} title="Télécharger facture">
                           <Download className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button size="sm" variant="destructive" onClick={() => handleDeleteAbonnement(abClient.id)} title="Supprimer">
+                      
+                      {/* Bouton historique pour les admins sur les abonnements non terminés */}
+                      {isAdmin && abClient.statut_paiement !== 'PAIEMENT_TERMINE' && (
+                        <Button size="sm" variant="outline" onClick={() => { setHistoriqueAbonnement(abClient); setIsHistoriqueDialogOpen(true); }} title="Voir l'historique des paiements">
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      )}
+                      
+                      {/* Bouton suppression pour les employés seulement */}
+                      {isEmployee && (
+                        <Button size="sm" variant="destructive" onClick={() => handleDeleteAbonnement(abClient.id)} title="Supprimer" disabled={abClient.statut_paiement === 'PAIEMENT_TERMINE' || abClient.montant_paye > 0}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -336,7 +437,8 @@ export function AbonnementClientManagement() {
         </CardContent>
       </Card>
 
-      {/* Dialog de création */}
+      {/* Dialog de création - Seulement pour les employés */}
+      {isEmployee && (
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -404,8 +506,10 @@ export function AbonnementClientManagement() {
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
-      {/* Dialog modification abonnement */}
+      {/* Dialog modification abonnement - Seulement pour les employés */}
+      {isEmployee && (
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -473,45 +577,60 @@ export function AbonnementClientManagement() {
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
-      {/* Dialog historique paiements */}
+      {/* Dialog historique paiements - Pour les employés et admins (lecture seule pour les admins) */}
+      {(isEmployee || isAdmin) && (
       <Dialog open={isHistoriqueDialogOpen} onOpenChange={setIsHistoriqueDialogOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Historique des paiements</DialogTitle>
             <DialogDescription>
-              Liste des paiements effectués pour cet abonnement
+                {isEmployee 
+                  ? "Liste des paiements effectués pour cet abonnement" 
+                  : "Historique des paiements effectués pour cet abonnement"
+                }
             </DialogDescription>
           </DialogHeader>
           
-          {/* Section modification montant */}
+            {/* Section modification montant - Seulement pour les employés */}
+            {isEmployee && (
           <div className="mb-4 p-4 border rounded-lg">
             <h3 className="font-semibold mb-2">Ajouter un paiement</h3>
             <div className="flex gap-2 items-end">
               <div className="flex-1">
                 <Label htmlFor="montant_modification">Montant à ajouter</Label>
-                <Input
-                  id="montant_modification"
-                  type="number"
-                  min={0}
-                  max={historiqueAbonnement ? historiqueAbonnement.montant_total - historiqueAbonnement.montant_paye : undefined}
-                  value={montantModification}
-                  onChange={e => setMontantModification(e.target.value)}
-                  placeholder="Montant en FCFA que le client vient de donner"
-                />
+                <div className="relative">
+                  <Input
+                    id="montant_modification"
+                    type="number"
+                    min={0}
+                    max={historiqueAbonnement ? historiqueAbonnement.montant_total - historiqueAbonnement.montant_paye : undefined}
+                    value={montantModification}
+                    onChange={e => setMontantModification(e.target.value)}
+                    placeholder="Montant que le client vient de donner"
+                    className="pl-8"
+                  />
+                  <span className="absolute left-3 top-2.5 text-gray-500 text-sm">FCFA</span>
+                </div>
               </div>
               <Button onClick={handleModifierMontantPaye} disabled={!montantModification}>
-                <Euro className="h-4 w-4 mr-1" /> Ajouter
+                <DollarSign className="h-4 w-4 mr-1" /> Ajouter le paiement
               </Button>
             </div>
             {historiqueAbonnement && (
               <div className="text-sm text-gray-500 mt-2 space-y-1">
-                <p>Montant total de l'abonnement: {historiqueAbonnement.montant_total.toLocaleString()} FCFA</p>
-                <p>Montant déjà payé: {historiqueAbonnement.montant_paye.toLocaleString()} FCFA</p>
-                <p>Reste à payer: {(historiqueAbonnement.montant_total - historiqueAbonnement.montant_paye).toLocaleString()} FCFA</p>
+                <p className="font-medium">Montant total de l'abonnement: <span className="font-bold">{historiqueAbonnement.montant_total.toLocaleString('fr-FR')} FCFA</span></p>
+                <p className="text-green-600">Montant déjà payé: <span className="font-bold">{historiqueAbonnement.montant_paye.toLocaleString('fr-FR')} FCFA</span></p>
+                <p className={historiqueAbonnement.montant_total - historiqueAbonnement.montant_paye > 0 ? 'text-red-600' : 'text-green-600'}>
+                  {historiqueAbonnement.montant_total - historiqueAbonnement.montant_paye > 0 
+                    ? `Reste à payer: ${(historiqueAbonnement.montant_total - historiqueAbonnement.montant_paye).toLocaleString('fr-FR')} FCFA`
+                    : 'Paiement complet'}
+                </p>
               </div>
             )}
           </div>
+            )}
 
           <ScrollArea className="max-h-80">
             <Table>
@@ -541,6 +660,7 @@ export function AbonnementClientManagement() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   )
 } 

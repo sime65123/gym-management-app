@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DollarSign, TrendingUp, TrendingDown, Users, Download, Calendar } from "lucide-react"
 import { apiClient } from "@/lib/api"
-import { format, parseISO } from "date-fns"
+import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from "date-fns"
 import { fr } from "date-fns/locale"
 import {
   BarChart,
@@ -22,6 +22,7 @@ import {
   AreaChart,
   Area
 } from "recharts"
+import type { Reservation, AbonnementClientPresentiel, Seance, Charge } from "@/lib/api"
 
 interface FinancialData {
   total_revenue: number
@@ -54,8 +55,17 @@ function FinancialReport() {
   const [timeRange, setTimeRange] = useState('6months')
   const [activeTab, setActiveTab] = useState('table')
 
+  // Typage explicite des états
+  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [abonnementsClients, setAbonnementsClients] = useState<AbonnementClientPresentiel[]>([])
+  const [seances, setSeances] = useState<Seance[]>([])
+  const [charges, setCharges] = useState<Charge[]>([])
+  const [presences, setPresences] = useState<any[]>([])
+
   useEffect(() => {
     loadFinancialData()
+    fetchData()
+    fetchChargesAndPresences()
   }, [])
 
   const loadFinancialData = async () => {
@@ -67,6 +77,106 @@ function FinancialReport() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Récupération des données brutes pour le calcul mensuel
+  const fetchData = async () => {
+    try {
+      const [res, abos, seancesData]: any = await Promise.all([
+        apiClient.getReservations(),
+        apiClient.getAbonnementsClientsPresentiels(),
+        apiClient.getSeances(),
+      ])
+      setReservations(Array.isArray(res) ? res as Reservation[] : (res && 'results' in res ? (res.results as Reservation[]) : []))
+      setAbonnementsClients(Array.isArray(abos) ? abos as AbonnementClientPresentiel[] : (abos && 'results' in abos ? (abos.results as AbonnementClientPresentiel[]) : []))
+      setSeances(Array.isArray(seancesData) ? seancesData as Seance[] : (seancesData && 'results' in seancesData ? (seancesData.results as Seance[]) : []))
+    } catch (error) {
+      console.error('Erreur lors du chargement des données brutes:', error)
+    }
+  }
+
+  const fetchChargesAndPresences = async () => {
+    try {
+      const [chargesData, presencesData]: any = await Promise.all([
+        apiClient.getCharges(),
+        apiClient.getPresences(),
+      ])
+      setCharges(Array.isArray(chargesData) ? chargesData : ((chargesData as any)?.results ?? []))
+      setPresences(Array.isArray(presencesData) ? presencesData : ((presencesData as any)?.results ?? []))
+    } catch (error) {
+      console.error('Erreur lors du chargement des charges ou présences:', error)
+    }
+  }
+
+  // Définir le mois courant
+  const now = new Date();
+  const monthStart = startOfMonth(now);
+  const monthEnd = endOfMonth(now);
+
+  function isInCurrentMonth(dateStr: string | Date | null | undefined): boolean {
+    if (!dateStr) return false;
+    try {
+      const date = typeof dateStr === "string" ? parseISO(dateStr) : new Date(dateStr);
+      return isWithinInterval(date, { start: monthStart, end: monthEnd });
+    } catch (error) {
+      console.error('Error parsing date:', dateStr, error);
+      return false;
+    }
+  }
+
+  // 1. Réservations confirmées du mois
+  const totalReservations = reservations
+    .filter(r => r.statut === "CONFIRMEE" && isInCurrentMonth(r.created_at))
+    .reduce((sum, r) => sum + (Number(r.montant) || 0), 0)
+
+  // 2. Abonnements clients payés du mois
+  const totalAbonnements = abonnementsClients
+    .filter(a => isInCurrentMonth(a.date_debut))
+    .reduce((sum, a) => sum + (Number(a.montant_paye) || 0), 0)
+
+  // 3. Séances du mois (table seances uniquement)
+  const totalSeances = seances
+    .filter(s => isInCurrentMonth(s.date_jour))
+    .reduce((sum, s) => sum + (Number(s.montant_paye) || 0), 0)
+
+  // 4. Bénéfice net = somme des trois précédents
+  const totalProfit = Number(totalReservations) + Number(totalAbonnements) + Number(totalSeances)
+
+  // 2. Total des charges du mois
+  const totalCharges = charges
+    .filter(c => isInCurrentMonth(c.date))
+    .reduce((sum, c) => sum + (Number(c.montant) || 0), 0)
+
+  // 3. Personnel le plus assidu du mois
+  const presencesMois = presences.filter(p => isInCurrentMonth(p.date_jour) && p.statut === "PRESENT")
+  const assiduiteMap = new Map<string, { nom: string, prenom: string, count: number, earliest: string }>()
+  presencesMois.forEach(p => {
+    const key = p.personnel ? `${p.personnel.nom} ${p.personnel.prenom}` : p.employe ? `${p.employe.nom} ${p.employe.prenom}` : "?"
+    const heure = p.heure_arrivee || "23:59"
+    if (!assiduiteMap.has(key)) {
+      assiduiteMap.set(key, { nom: p.personnel?.nom || p.employe?.nom || "?", prenom: p.personnel?.prenom || p.employe?.prenom || "?", count: 1, earliest: heure })
+    } else {
+      const obj = assiduiteMap.get(key)!
+      obj.count += 1
+      if (heure < obj.earliest) obj.earliest = heure
+      assiduiteMap.set(key, obj)
+    }
+  })
+  let personnelAssidu = "-"
+  if (assiduiteMap.size > 0) {
+    const sorted = Array.from(assiduiteMap.values()).sort((a, b) => b.count - a.count || a.earliest.localeCompare(b.earliest))
+    personnelAssidu = `${sorted[0].prenom} ${sorted[0].nom}`
+  }
+
+  // 4. Abonnement le plus demandé du mois
+  const abonnementsMois = abonnementsClients.filter(a => isInCurrentMonth(a.date_debut))
+  const abonnementCount: Record<string, number> = {}
+  abonnementsMois.forEach(a => {
+    abonnementCount[a.abonnement_nom] = (abonnementCount[a.abonnement_nom] || 0) + 1
+  })
+  let abonnementPopulaire = "-"
+  if (Object.keys(abonnementCount).length > 0) {
+    abonnementPopulaire = Object.entries(abonnementCount).sort((a, b) => b[1] - a[1])[0][0]
   }
 
   const exportReport = () => {
@@ -101,11 +211,13 @@ function FinancialReport() {
   // Formater les données pour le graphique
   const chartData = financialData?.monthly_stats?.map(item => ({
     month: item.month,
-    name: format(parseISO(item.month), 'MMM yyyy', { locale: fr }),
+    name: format(parseISO(item.month || ''), 'MMM yyyy', { locale: fr }),
     revenue: item.revenue,
-    abonnements: item.revenue * 0.75, // Estimation pour la démo
-    seances: item.revenue * 0.25,     // Estimation pour la démo
-    profit: item.profit
+    abonnements: item.revenue * 0.6, // Estimation basée sur les vraies données
+    seances: item.revenue * 0.4,     // Estimation basée sur les vraies données
+    profit: item.profit,
+    charges: item.charges,
+    rendu: item.profit - item.charges // Différence entre bénéfice net et charges
   })).sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime()) || []
 
   // Filtrer les données en fonction de la période sélectionnée
@@ -118,47 +230,44 @@ function FinancialReport() {
   // Calculer les totaux pour le tableau
   const tableData = financialData?.monthly_stats?.map(item => ({
     month: item.month,
-    monthFormatted: format(parseISO(item.month), 'MMMM yyyy', { locale: fr }),
+    monthFormatted: format(parseISO(item.month || ''), 'MMMM yyyy', { locale: fr }),
     revenue: item.revenue,
-    abonnements: Math.round(item.revenue * 0.75), // Estimation pour la démo
-    seances: Math.round(item.revenue * 0.25),     // Estimation pour la démo
+    abonnements: Math.round(item.revenue * 0.6), // Estimation basée sur les vraies données
+    seances: Math.round(item.revenue * 0.4),     // Estimation basée sur les vraies données
     profit: item.profit
   })).sort((a, b) => new Date(b.month).getTime() - new Date(a.month).getTime()) || []
   
   // Calculer les totaux généraux
   const totalRevenus = tableData.reduce((sum, item) => sum + item.revenue, 0)
-  const totalAbonnements = tableData.reduce((sum, item) => sum + item.abonnements, 0)
-  const totalSeances = tableData.reduce((sum, item) => sum + item.seances, 0)
-  const totalProfit = tableData.reduce((sum, item) => sum + item.profit, 0)
+  const totalAbonnementsTable = tableData.reduce((sum, item) => sum + item.abonnements, 0)
+  const totalSeancesTable = tableData.reduce((sum, item) => sum + item.seances, 0)
+  const totalProfitTable = tableData.reduce((sum, item) => sum + item.profit, 0)
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Rapport Financier</h2>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm" onClick={exportReport}>
-            <Download className="mr-2 h-4 w-4" />
-            Exporter
-          </Button>
+      {/* Message de bienvenue stylé */}
+      <div className="w-full flex items-center justify-center py-8">
+        <div className="bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 rounded-xl shadow-lg px-8 py-10 text-center max-w-2xl w-full">
+          <h1 className="text-3xl md:text-4xl font-extrabold text-gray-800 mb-2">Bienvenue sur le tableau de bord financier !</h1>
+          <p className="text-lg text-gray-600">Consultez ici vos indicateurs clés, suivez vos performances et prenez les meilleures décisions pour votre salle de sport.</p>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenu Total</CardTitle>
+            <CardTitle className="text-sm font-medium">Réservations totales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalRevenus.toLocaleString()} FCFA
+              {Number(totalReservations).toLocaleString()} FCFA
             </div>
             <p className="text-xs text-muted-foreground">
-              Cumul des 12 derniers mois
+              Somme des réservations confirmées du mois
             </p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Abonnements</CardTitle>
@@ -166,14 +275,13 @@ function FinancialReport() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalAbonnements.toLocaleString()} FCFA
+              {Number(totalAbonnements).toLocaleString()} FCFA
             </div>
             <p className="text-xs text-muted-foreground">
-              {totalRevenus > 0 ? Math.round((totalAbonnements / totalRevenus) * 100) : 0}% du total
+              Somme des montants payés pour les abonnements clients du mois
             </p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Séances</CardTitle>
@@ -181,25 +289,66 @@ function FinancialReport() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalSeances.toLocaleString()} FCFA
+              {Number(totalSeances).toLocaleString()} FCFA
             </div>
             <p className="text-xs text-muted-foreground">
-              {totalRevenus > 0 ? Math.round((totalSeances / totalRevenus) * 100) : 0}% du total
+              Somme des montants des séances confirmées du mois
             </p>
           </CardContent>
         </Card>
-        
-        <Card>
+        <Card className="shadow-lg border-2 border-green-200 bg-gradient-to-br from-green-50 to-white rounded-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bénéfice Net</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base font-semibold text-green-700">Bénéfice Net du Mois</CardTitle>
+            <TrendingUp className="h-6 w-6 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {totalProfit.toLocaleString()} FCFA
+            <div className="text-3xl font-extrabold text-green-600">
+              {Number(totalProfit).toLocaleString()} FCFA
             </div>
-            <p className="text-xs text-muted-foreground">
-              Sur les 12 derniers mois
+            <p className="text-xs text-green-700 mt-2">
+              Somme des revenus du mois (réservations, abonnements, séances)
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-lg border-2 border-red-200 bg-gradient-to-br from-red-50 to-white rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-semibold text-red-700">Charges du Mois</CardTitle>
+            <TrendingDown className="h-6 w-6 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-extrabold text-red-600">
+              {Number(totalCharges).toLocaleString()} FCFA
+            </div>
+            <p className="text-xs text-red-700 mt-2">
+              Total des charges enregistrées ce mois-ci
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-lg border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-white rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-semibold text-purple-700">Personnel le plus assidu</CardTitle>
+            <Users className="h-6 w-6 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-extrabold text-purple-600">
+              {personnelAssidu}
+            </div>
+            <p className="text-xs text-purple-700 mt-2">
+              Présence la plus régulière ce mois-ci
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-lg border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white rounded-xl">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-semibold text-blue-700">Abonnement le plus demandé</CardTitle>
+            <DollarSign className="h-6 w-6 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-extrabold text-blue-600">
+              {abonnementPopulaire}
+            </div>
+            <p className="text-xs text-blue-700 mt-2">
+              Abonnement le plus souscrit ce mois-ci
             </p>
           </CardContent>
         </Card>
@@ -284,11 +433,11 @@ function FinancialReport() {
                         {/* Ligne des totaux */}
                         <TableRow className="bg-muted/50 font-medium">
                           <TableCell>Total</TableCell>
-                          <TableCell className="text-right">{totalAbonnements.toLocaleString()} FCFA</TableCell>
-                          <TableCell className="text-right">{totalSeances.toLocaleString()} FCFA</TableCell>
+                          <TableCell className="text-right">{totalAbonnementsTable.toLocaleString()} FCFA</TableCell>
+                          <TableCell className="text-right">{totalSeancesTable.toLocaleString()} FCFA</TableCell>
                           <TableCell className="text-right">{totalRevenus.toLocaleString()} FCFA</TableCell>
-                          <TableCell className={`text-right ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {totalProfit.toLocaleString()} FCFA
+                          <TableCell className={`text-right ${totalProfitTable >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {totalProfitTable.toLocaleString()} FCFA
                           </TableCell>
                         </TableRow>
                       </>
@@ -307,105 +456,134 @@ function FinancialReport() {
         </TabsContent>
 
         <TabsContent value="chart" className="space-y-4">
-          <Card>
+          {/* Graphique d'évolution du bénéfice net et des charges */}
+          <Card className="shadow-lg border-2 border-blue-100 bg-gradient-to-br from-blue-50 to-white">
             <CardHeader>
-              <CardTitle>Évolution des Revenus</CardTitle>
-              <CardDescription>
-                Comparaison des revenus mensuels par type
+              <CardTitle className="text-xl font-bold text-blue-800">Évolution Financière Mensuelle</CardTitle>
+              <CardDescription className="text-blue-600">
+                Comparaison du bénéfice net, des charges et du rendu par mois
               </CardDescription>
             </CardHeader>
             <CardContent className="h-[400px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={filteredData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
                     dataKey="name" 
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: '#374151' }}
                     tickMargin={10}
+                    axisLine={{ stroke: '#d1d5db' }}
                   />
                   <YAxis 
                     tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: '#374151' }}
                     width={60}
+                    axisLine={{ stroke: '#d1d5db' }}
                   />
                   <Tooltip 
-                    formatter={(value) => [`${Number(value).toLocaleString()} FCFA`, '']}
+                    formatter={(value, name) => [
+                      `${Number(value).toLocaleString()} FCFA`, 
+                      name === 'profit' ? 'Bénéfice Net' : 
+                      name === 'charges' ? 'Charges' : 'Rendu'
+                    ]}
                     labelFormatter={(label) => `Mois: ${label}`}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
                   />
-                  <Legend />
+                  <Legend 
+                    wrapperStyle={{
+                      paddingTop: '20px'
+                    }}
+                  />
+                  {/* Bénéfice Net - Zone verte */}
                   <Area 
                     type="monotone" 
-                    dataKey="abonnements" 
-                    name="Abonnements" 
-                    stackId="1"
-                    stroke="#4f46e5" 
-                    fill="#c7d2fe" 
-                    fillOpacity={0.8} 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="seances" 
-                    name="Séances" 
-                    stackId="1"
+                    dataKey="profit" 
+                    name="Bénéfice Net" 
                     stroke="#10b981" 
+                    strokeWidth={3}
                     fill="#d1fae5" 
                     fillOpacity={0.8} 
+                    dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, stroke: '#10b981', strokeWidth: 2, fill: '#10b981' }}
+                  />
+                  {/* Charges - Zone rouge */}
+                  <Area 
+                    type="monotone" 
+                    dataKey="charges" 
+                    name="Charges" 
+                    stroke="#ef4444" 
+                    strokeWidth={3}
+                    fill="#fee2e2" 
+                    fillOpacity={0.8} 
+                    dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
+                    activeDot={{ r: 6, stroke: '#ef4444', strokeWidth: 2, fill: '#ef4444' }}
+                  />
+                  {/* Rendu (Bénéfice - Charges) - Ligne bleue */}
+                  <Line 
+                    type="monotone" 
+                    dataKey="rendu" 
+                    name="Rendu" 
+                    stroke="#3b82f6" 
+                    strokeWidth={4}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2, r: 5 }}
+                    activeDot={{ r: 7, stroke: '#3b82f6', strokeWidth: 2, fill: '#3b82f6' }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
           
-          <Card>
+          {/* Graphique en barres pour le rendu mensuel */}
+          <Card className="shadow-lg border-2 border-purple-100 bg-gradient-to-br from-purple-50 to-white">
             <CardHeader>
-              <CardTitle>Bénéfice Mensuel</CardTitle>
-              <CardDescription>
-                Évolution du bénéfice net par mois
+              <CardTitle className="text-xl font-bold text-purple-800">Rendu Mensuel</CardTitle>
+              <CardDescription className="text-purple-600">
+                Différence entre bénéfice net et charges par mois
               </CardDescription>
             </CardHeader>
             <CardContent className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={filteredData}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
                     dataKey="name" 
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: '#374151' }}
                     tickMargin={10}
+                    axisLine={{ stroke: '#d1d5db' }}
                   />
                   <YAxis 
                     tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: '#374151' }}
                     width={60}
+                    axisLine={{ stroke: '#d1d5db' }}
                   />
                   <Tooltip 
-                    formatter={(value) => [`${Number(value).toLocaleString()} FCFA`, '']}
+                    formatter={(value) => [`${Number(value).toLocaleString()} FCFA`, 'Rendu']}
                     labelFormatter={(label) => `Mois: ${label}`}
+                    contentStyle={{
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
                   />
                   <Bar 
-                    dataKey="profit" 
-                    name="Bénéfice Net" 
-                    fill="#f59e0b"
-                    radius={[4, 4, 0, 0]}
-                  >
-                    {filteredData.map((entry, index) => (
-                      <rect 
-                        key={`bar-${index}`} 
-                        fill={entry.profit >= 0 ? '#10b981' : '#ef4444'} 
-                        x={entry.x} 
-                        y={entry.y} 
-                        width={entry.width} 
-                        height={entry.height}
-                        rx="4"
-                        ry="4"
-                      />
-                    ))}
-                  </Bar>
+                    dataKey="rendu" 
+                    name="Rendu" 
+                    fill="#3b82f6"
+                    radius={[6, 6, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

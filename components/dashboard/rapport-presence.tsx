@@ -21,6 +21,7 @@ interface PresenceRapport {
     nom: string
     prenom: string
     email: string
+    role?: string
   }
   statut: "PRESENT" | "ABSENT"
   heure_arrivee: string
@@ -86,6 +87,10 @@ export function RapportPresence() {
         return "Ménage"
       case "AIDE_SOIGNANT":
         return "Aide-soignant"
+      case "ADMIN":
+        return "Administrateur"
+      case "EMPLOYE":
+        return "Employé"
       case "AUTRE":
         return "Autre"
       default:
@@ -101,6 +106,10 @@ export function RapportPresence() {
         return "bg-green-100 text-green-800"
       case "AIDE_SOIGNANT":
         return "bg-purple-100 text-purple-800"
+      case "ADMIN":
+        return "bg-red-100 text-red-800"
+      case "EMPLOYE":
+        return "bg-orange-100 text-orange-800"
       case "AUTRE":
         return "bg-gray-100 text-gray-800"
       default:
@@ -200,26 +209,33 @@ export function RapportPresence() {
                   </TableCell>
                 </TableRow>
               ) : (
-                presences.map((presence) => (
-                  <TableRow key={presence.id}>
-                    <TableCell className="font-medium">
-                      {presence.personnel?.prenom} {presence.personnel?.nom}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getCategorieBadgeColor(presence.personnel?.categorie || "")}>
-                        {getCategorieLabel(presence.personnel?.categorie || "")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{getStatutBadge(presence.statut)}</TableCell>
-                    <TableCell>{presence.heure_arrivee || "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-2" />
-                        {new Date(presence.date_jour).toLocaleDateString("fr-FR")}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
+                presences.map((presence) => {
+                  // Déterminer si c'est un employé ou un personnel
+                  const isEmployee = presence.employe && !presence.personnel
+                  const personnel = isEmployee ? presence.employe : presence.personnel
+                  const categorie = isEmployee ? (personnel?.role || "EMPLOYE") : (personnel?.categorie || "")
+                  
+                  return (
+                    <TableRow key={presence.id}>
+                      <TableCell className="font-medium">
+                        {personnel?.prenom} {personnel?.nom}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getCategorieBadgeColor(categorie)}>
+                          {getCategorieLabel(categorie)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{getStatutBadge(presence.statut)}</TableCell>
+                      <TableCell>{presence.heure_arrivee || "-"}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {new Date(presence.date_jour).toLocaleDateString("fr-FR")}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
               )}
             </TableBody>
           </Table>

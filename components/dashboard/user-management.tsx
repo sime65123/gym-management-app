@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Trash2, Search, RotateCcw } from "lucide-react"
+import { Plus, Edit, Trash2, Search, RotateCcw, Calendar } from "lucide-react"
 import { apiClient, type User } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
@@ -44,7 +44,10 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
   const [selectedRole, setSelectedRole] = useState<string>("all")
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isReservationsDialogOpen, setIsReservationsDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedClientReservations, setSelectedClientReservations] = useState<any>(null)
+  const [loadingReservations, setLoadingReservations] = useState(false)
   const [formData, setFormData] = useState<FormData>({
     email: "",
     nom: "",
@@ -62,26 +65,11 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
   const loadUsers = async () => {
     try {
       setLoading(true)
-      console.log("Chargement des utilisateurs...")
       const response = await apiClient.getUsers()
-      console.log("Réponse complète de l'API (users):", response)
-      
-      // Vérifier si la réponse contient une propriété 'results' (pagination) ou est directement le tableau
       const usersArray = (response as any)?.results || (Array.isArray(response) ? response : [])
-      
-      // Log des données brutes des utilisateurs
-      console.log("Liste des utilisateurs chargés:", usersArray.map((u: any) => ({
-        id: u.id,
-        email: u.email,
-        role: u.role,
-        nom: u.nom,
-        prenom: u.prenom
-      })))
-      
       setUsers(usersArray)
     } catch (error) {
-      console.error("Erreur lors du chargement des utilisateurs:", error)
-      setUsers([])
+      console.error("Error loading users:", error)
       toast({
         title: "Erreur",
         description: "Impossible de charger la liste des utilisateurs",
@@ -94,85 +82,20 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
 
   const handleCreateUser = async () => {
     try {
-      // Créer un nouvel objet avec les données du formulaire
-      const userData = {
-        email: formData.email.trim(),
-        nom: formData.nom.trim(),
-        prenom: formData.prenom.trim(),
-        telephone: formData.telephone.trim(),
-        role: (formData.role || "CLIENT").toUpperCase() as UserRole,
-        password: formData.password || undefined
-      };
-      
-      console.log("======= TENTATIVE DE CRÉATION D'UTILISATEUR =======");
-      console.log("Données du formulaire:", formData);
-      console.log("Données envoyées à l'API:", JSON.stringify(userData, null, 2));
-      
-      const response = await apiClient.createUser(userData);
-      console.log("Réponse de l'API:", response);
-      
-      // Vérifier si la réponse contient un rôle différent
-      if (response && response.role && response.role !== userData.role) {
-        console.warn(`Attention: Le rôle a été modifié par le serveur de ${userData.role} à ${response.role}`);
-      }
-      
-      // Afficher le message de succès avec le rôle sélectionné
+      const userData = await apiClient.createUser(formData)
       toast({
-        title: "Ajout réussi",
-        description: `L'utilisateur a été ajouté avec le rôle ${userData.role}.`,
-        duration: 5000,
-      });
-      
-      // Fermer le dialogue et réinitialiser le formulaire
-      setIsCreateDialogOpen(false);
-      resetForm();
-      
-      // Recharger les utilisateurs depuis le serveur
-      try {
-        console.log("Rechargement des utilisateurs après création...");
-        const response = await apiClient.getUsers();
-        const usersArray = (response as any)?.results || (Array.isArray(response) ? response : []);
-        
-        console.log("Nouvelle liste des utilisateurs après création:", usersArray.map((u: any) => ({
-          id: u.id,
-          email: u.email,
-          role: u.role,
-          nom: u.nom,
-          prenom: u.prenom
-        })));
-        
-        setUsers(usersArray);
-      } catch (error) {
-        console.error("Erreur lors du rechargement des utilisateurs:", error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de rafraîchir la liste des utilisateurs",
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      console.error("Erreur lors de la création de l'utilisateur:", error)
-      
-      let errorMessage = "L'ajout a échoué. Veuillez réessayer."
-      
-      if (error.response) {
-        // Si l'erreur vient de l'API avec une réponse
-        try {
-          const errorData = await error.response.json()
-          errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData)
-        } catch (e) {
-          // Si la réponse n'est pas du JSON
-          errorMessage = `Erreur ${error.response.status}: ${error.response.statusText}`
-        }
-      } else if (error.message) {
-        errorMessage = error.message
-      }
-      
+        title: "Utilisateur créé",
+        description: `L'utilisateur a été ajouté avec succès.`,
+      })
+      setIsCreateDialogOpen(false)
+      resetForm()
+      await loadUsers()
+    } catch (error) {
+      console.error("Error creating user:", error)
       toast({
         title: "Erreur",
-        description: errorMessage,
+        description: "Impossible de créer l'utilisateur",
         variant: "destructive",
-        duration: 10000, // Message plus long pour permettre la lecture
       })
     }
   }
@@ -188,59 +111,135 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
       await apiClient.updateUser(selectedUser.id, updateData)
       setIsEditDialogOpen(false)
       resetForm()
-      loadUsers()
+      await loadUsers()
       toast({
-        title: "Modification réussie",
-        description: "L'utilisateur a été modifié.",
-        duration: 5000,
+        title: "Succès",
+        description: "L'utilisateur a été mis à jour avec succès.",
       })
     } catch (error) {
+      console.error("Error updating user:", error)
       toast({
         title: "Erreur",
-        description: "La modification a échoué.",
+        description: "Impossible de mettre à jour l'utilisateur",
         variant: "destructive",
-        duration: 5000,
       })
     }
   }
 
-  const handleDeleteUser = async (id: number): Promise<void> => {
+  const handleDeleteUser = async (id: number) => {
     try {
       await apiClient.deleteUser(id)
-      // Mise à jour de l'état local
-      setUsers(prev => prev.filter(u => u.id !== id))
+      await loadUsers()
+      toast({
+        title: "Succès",
+        description: "L'utilisateur a été supprimé avec succès.",
+      })
     } catch (error) {
-      console.error('Erreur lors de la suppression:', error)
-      throw error
+      console.error("Error deleting user:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer l'utilisateur",
+        variant: "destructive",
+      })
     }
   }
 
   const resetForm = () => {
-    const defaultFormData: FormData = {
+    setFormData({
       email: "",
       nom: "",
       prenom: "",
       telephone: "",
-      role: "CLIENT", // Valeur par défaut
+      role: "CLIENT",
       password: "",
-    };
-    
-    console.log("Réinitialisation du formulaire avec les valeurs par défaut:", defaultFormData);
-    setFormData(defaultFormData);
-    setSelectedUser(null);
+    })
   }
 
   const openEditDialog = (user: User) => {
     setSelectedUser(user)
     setFormData({
       email: user.email,
-      nom: user.nom,
-      prenom: user.prenom,
+      nom: user.nom || "",
+      prenom: user.prenom || "",
       telephone: user.telephone || "",
-      role: user.role,
+      role: user.role as UserRole,
       password: "",
     })
     setIsEditDialogOpen(true)
+  }
+
+  const openReservationsDialog = async (user: User) => {
+    console.log('Ouverture du dialogue des réservations pour l\'utilisateur:', user.id, user.nom, user.prenom)
+    
+    // Vérifier que l'utilisateur est un client
+    if (user.role !== 'CLIENT') {
+      toast({
+        title: "Information",
+        description: "Seuls les clients peuvent avoir des réservations",
+        variant: "default",
+      });
+      return;
+    }
+    
+    setSelectedUser(user)
+    setLoadingReservations(true)
+    
+    try {
+      console.log('Appel à apiClient.getUserReservations...')
+      const response = await apiClient.getUserReservations(user.id)
+      console.log('Réponse de getUserReservations:', response)
+      
+      if (!response || !response.reservations) {
+        console.error('Format de réponse inattendu:', response)
+        throw new Error('Format de réponse inattendu')
+      }
+      
+      // Filtrer pour ne garder que les réservations confirmées et entièrement payées
+      const confirmedAndPaidReservations = response.reservations.filter(
+        (reservation: any) => {
+          const isConfirmed = reservation.statut === 'CONFIRMEE';
+          const isPaid = reservation.montant_total_paye && 
+                        parseFloat(reservation.montant_total_paye) >= (reservation.montant || 0);
+          
+          return isConfirmed && isPaid;
+        }
+      )
+      
+      console.log('Réservations confirmées et payées:', confirmedAndPaidReservations)
+      
+      const clientReservations = {
+        ...response,
+        reservations: confirmedAndPaidReservations
+      }
+      
+      console.log('Données à enregistrer dans l\'état:', clientReservations)
+      setSelectedClientReservations(clientReservations)
+      setIsReservationsDialogOpen(true)
+    } catch (error) {
+      console.error("Erreur lors du chargement des réservations:", error)
+      
+      // Afficher un message d'erreur plus détaillé
+      let errorMessage = "Impossible de charger les réservations";
+      if (error instanceof Error) {
+        if (error.message.includes('401')) {
+          errorMessage = "Non autorisé à accéder à ces réservations";
+        } else if (error.message.includes('403')) {
+          errorMessage = "Vous n'avez pas les permissions nécessaires";
+        } else if (error.message.includes('404')) {
+          errorMessage = "Aucune réservation trouvée pour cet utilisateur";
+        } else {
+          errorMessage = error.message || errorMessage;
+        }
+      }
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingReservations(false)
+    }
   }
 
   const filteredUsers = users.filter((user: User) => {
@@ -248,7 +247,9 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
     const matchesSearch = user.nom?.toLowerCase().includes(searchLower) ||
       user.prenom?.toLowerCase().includes(searchLower) ||
       user.email?.toLowerCase().includes(searchLower)
+    
     const matchesRole = selectedRole === "all" || user.role === selectedRole
+    
     return matchesSearch && matchesRole
   })
 
@@ -268,257 +269,6 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
   if (loading) {
     return <div className="flex justify-center p-8">Chargement...</div>
   }
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <div>
-            <CardTitle>Gestion des Utilisateurs</CardTitle>
-            <CardDescription>Gérez les comptes administrateurs, employés et clients</CardDescription>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={loadUsers} title="Actualiser la liste">
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => resetForm()}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nouvel utilisateur
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
-                <DialogDescription>Ajoutez un nouveau membre à votre équipe ou un client</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="prenom">Prénom</Label>
-                    <Input
-                      id="prenom"
-                      value={formData.prenom}
-                      onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="nom">Nom</Label>
-                    <Input
-                      id="nom"
-                      value={formData.nom}
-                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="telephone">Téléphone</Label>
-                  <Input
-                    id="telephone"
-                    value={formData.telephone}
-                    onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="role">Rôle</Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value: string) => {
-                      const selectedRole = value.toUpperCase() as UserRole;
-                      console.log("Rôle sélectionné:", selectedRole);
-                      setFormData(prev => ({
-                        ...prev,
-                        role: selectedRole
-                      }));
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez un rôle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="CLIENT">Client</SelectItem>
-                      <SelectItem value="EMPLOYE">Employé</SelectItem>
-                      <SelectItem value="ADMIN">Administrateur</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Mot de passe</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Annuler
-                </Button>
-                <Button onClick={handleCreateUser}>Créer</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {/* Filters */}
-        <div className="flex gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Rechercher par nom, prénom ou email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-          <Select value={selectedRole} onValueChange={setSelectedRole}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les rôles</SelectItem>
-              <SelectItem value="ADMIN">Administrateurs</SelectItem>
-              <SelectItem value="EMPLOYE">Employés</SelectItem>
-              <SelectItem value="CLIENT">Clients</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Users Table */}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nom complet</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Téléphone</TableHead>
-              <TableHead>Rôle</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="font-medium">
-                  {user.prenom} {user.nom}
-                </TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.telephone || "-"}</TableCell>
-                <TableCell>
-                  <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex justify-center">
-                    <ConfirmDeleteButton onDelete={() => handleDeleteUser(user.id)}>
-                      <span className="flex items-center text-red-600 hover:text-red-800">
-                        <Trash2 className="h-5 w-5" />
-                      </span>
-                    </ConfirmDeleteButton>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Modifier l'utilisateur</DialogTitle>
-              <DialogDescription>Modifiez les informations de l'utilisateur</DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-prenom">Prénom</Label>
-                  <Input
-                    id="edit-prenom"
-                    value={formData.prenom}
-                    onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-nom">Nom</Label>
-                  <Input
-                    id="edit-nom"
-                    value={formData.nom}
-                    onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-email">Email</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-telephone">Téléphone</Label>
-                <Input
-                  id="edit-telephone"
-                  value={formData.telephone}
-                  onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-role">Rôle</Label>
-                <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CLIENT">Client</SelectItem>
-                    <SelectItem value="EMPLOYE">Employé</SelectItem>
-                    <SelectItem value="ADMIN">Administrateur</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-password">Nouveau mot de passe (optionnel)</Label>
-                <Input
-                  id="edit-password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Laissez vide pour ne pas changer"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button onClick={handleUpdateUser}>Sauvegarder</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
-  )
-
-  // Exposer la fonction loadUsers via la ref
-  useImperativeHandle(ref, () => ({
-    loadUsers
-  }), [loadUsers])
 
   return (
     <Card>
@@ -584,13 +334,7 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
                     <Label htmlFor="role">Rôle</Label>
                     <Select
                       value={formData.role}
-                      onValueChange={(value: string) => {
-                        const selectedRole = value.toUpperCase() as UserRole;
-                        setFormData(prev => ({
-                          ...prev,
-                          role: selectedRole
-                        }));
-                      }}
+                      onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Sélectionnez un rôle" />
@@ -639,7 +383,7 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
           </div>
           <Select value={selectedRole} onValueChange={setSelectedRole}>
             <SelectTrigger className="w-48">
-              <SelectValue />
+              <SelectValue placeholder="Tous les rôles" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tous les rôles</SelectItem>
@@ -651,46 +395,76 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
         </div>
 
         {/* Tableau des utilisateurs */}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nom complet</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Téléphone</TableHead>
-              <TableHead>Rôle</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="font-medium">
-                  {user.prenom} {user.nom}
-                </TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.telephone || "-"}</TableCell>
-                <TableCell>
-                  <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(user)}
-                      title="Modifier"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <ConfirmDeleteButton onDelete={() => handleDeleteUser(user.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </ConfirmDeleteButton>
-                  </div>
-                </TableCell>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nom</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Téléphone</TableHead>
+                <TableHead>Rôle</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.prenom} {user.nom}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.telephone || "-"}</TableCell>
+                    <TableCell>
+                      <Badge className={getRoleBadgeColor(user.role)}>
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-start gap-0 w-full">
+                        {/* Groupe d'actions spécifiques aux clients */}
+                        {user.role === 'CLIENT' && (
+                          <div className="flex items-center border-l border-gray-200">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 p-0 flex items-center justify-center hover:bg-gray-100"
+                              onClick={() => openReservationsDialog(user)}
+                              disabled={loadingReservations}
+                              title="Voir les réservations"
+                            >
+                              <Calendar className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                        
+                        {/* Groupe d'actions de suppression - Uniquement pour les rôles ADMIN et EMPLOYE */}
+                        {user.role !== 'CLIENT' && (
+                          <div className="flex items-center border-l border-gray-200">
+                            <ConfirmDeleteButton onDelete={() => handleDeleteUser(user.id)}>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8 p-0 flex items-center justify-center hover:bg-red-50"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </ConfirmDeleteButton>
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-24 text-center">
+                    Aucun utilisateur trouvé
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
         {/* Dialogue d'édition */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -742,7 +516,7 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
                   onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Sélectionnez un rôle" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CLIENT">Client</SelectItem>
@@ -752,13 +526,12 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-password">Nouveau mot de passe (optionnel)</Label>
+                <Label htmlFor="edit-password">Nouveau mot de passe (laisser vide pour ne pas changer)</Label>
                 <Input
                   id="edit-password"
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Laissez vide pour ne pas changer"
                 />
               </div>
             </div>
@@ -766,15 +539,139 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
               <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
                 Annuler
               </Button>
-              <Button onClick={handleUpdateUser}>Sauvegarder</Button>
+              <Button onClick={handleUpdateUser}>Enregistrer</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialogue des réservations */}
+        <Dialog open={isReservationsDialogOpen} onOpenChange={setIsReservationsDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <Calendar className="h-6 w-6 text-primary" />
+                <div>
+                  <DialogTitle className="text-xl">
+                    Gestion des réservations
+                  </DialogTitle>
+                  <DialogDescription>
+                    Voici la liste des réservations pour {selectedUser?.prenom} {selectedUser?.nom}
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+            {loadingReservations ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              </div>
+            ) : selectedClientReservations?.reservations?.length > 0 ? (
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Montant</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedClientReservations.reservations.map((reservation: Reservation) => {
+                      // Formater le montant avec le symbole FCFA
+                      const formattedAmount = new Intl.NumberFormat('fr-FR', {
+                        style: 'currency',
+                        currency: 'XOF',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      }).format(reservation.montant || 0);
+
+                      // Vérifier si le montant est payé
+                      const isPaid = reservation.montant_total_paye && 
+                                   parseFloat(reservation.montant_total_paye) >= (reservation.montant || 0);
+
+                      return (
+                        <TableRow key={reservation.id} className="hover:bg-gray-50">
+                          <TableCell className="font-medium">
+                            {reservation.nom_client || `${selectedUser?.prenom} ${selectedUser?.nom}`}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {reservation.type_reservation === 'SEANCE' ? 'Séance' : 'Abonnement'}
+                              </span>
+                              {reservation.description && (
+                                <span className="text-sm text-gray-500">{reservation.description}</span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-col items-end">
+                              <span className="font-medium">{formattedAmount}</span>
+                              <Badge 
+                                variant={isPaid ? 'default' : 'secondary'}
+                                className={`mt-1 ${isPaid ? 'bg-green-100 text-green-800 hover:bg-green-100' : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100'}`}
+                              >
+                                {isPaid ? 'Payé' : 'Non payé'}
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              className={`${
+                                reservation.statut === 'CONFIRMEE' 
+                                  ? 'bg-green-100 text-green-800 hover:bg-green-100' 
+                                  : reservation.statut === 'ANNULEE' 
+                                    ? 'bg-red-100 text-red-800 hover:bg-red-100' 
+                                    : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100'
+                              }`}
+                            >
+                              {reservation.statut}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {reservation.created_at ? (
+                              <div className="flex flex-col">
+                                <span>
+                                  {new Date(reservation.created_at).toLocaleDateString('fr-FR', { 
+                                    day: '2-digit', 
+                                    month: '2-digit', 
+                                    year: 'numeric' 
+                                  })}
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                  {new Date(reservation.created_at).toLocaleTimeString('fr-FR', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Aucune réservation trouvée pour ce client.</p>
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => setIsReservationsDialogOpen(false)}>Fermer</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </CardContent>
     </Card>
-  );
-});
+  )
+})
 
 UserManagement.displayName = 'UserManagement';
 
-export { UserManagement };
+export { UserManagement }

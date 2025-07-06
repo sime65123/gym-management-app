@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,25 +51,43 @@ export function PresenceManagement() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedPresence, setSelectedPresence] = useState<Presence | null>(null)
   const [personnel, setPersonnel] = useState<any[]>([])
-  const [selectedPersonnel, setSelectedPersonnel] = useState<string>("")
-  const [presenceType, setPresenceType] = useState<"personnel" | "employe">("personnel")
+  const [selectedPersonnel, setSelectedPersonnel] = useState("");
+  const [presenceType, setPresenceType] = useState<"personnel" | "employe">("personnel");
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [formData, setFormData] = useState({
     date_jour: new Date().toISOString().split("T")[0],
     statut: "PRESENT" as "PRESENT" | "ABSENT",
-    heure_arrivee: "",
+    heure_arrivee: "12:00", // Valeur par défaut pour éviter les erreurs de champ non contrôlé
   })
   const { toast } = useToast()
   const [groupedPresences, setGroupedPresences] = useState<{[key: string]: Presence[]}>({})
 
   useEffect(() => {
-    loadPresences()
-    loadPersonnel()
+    const loadCurrentUser = async () => {
+      try {
+        console.log("Chargement du profil utilisateur...");
+        const user = await apiClient.getProfile();
+        console.log("Utilisateur chargé:", user);
+        setCurrentUser(user);
+      } catch (error) {
+        console.error("Erreur lors du chargement de l'utilisateur:", error);
+      }
+    };
+
+    loadPresences();
+    loadPersonnel();
+    loadCurrentUser();
   }, [])
 
   const loadPresences = async () => {
     try {
-      const response = await apiClient.getPresences()
-      const allPresences = response.results || response
+      const response = await apiClient.getPresences() as Presence[] | { results: Presence[] };
+      // Gérer le cas où response est déjà un tableau ou contient une propriété results
+      const allPresences: Presence[] = Array.isArray(response) 
+        ? response 
+        : 'results' in response 
+          ? response.results 
+          : [];
       
       // Grouper les présences par date
       const grouped = allPresences.reduce((acc: {[key: string]: Presence[]}, presence: Presence) => {
@@ -99,21 +117,146 @@ export function PresenceManagement() {
 
   const loadPersonnel = async () => {
     try {
-      const response = await apiClient.getPersonnel()
-      setPersonnel(response.results || response)
+      type PersonnelType = {
+        id: number;
+        nom: string;
+        prenom: string;
+        categorie: string;
+      };
+      
+      const response = await apiClient.getPersonnel() as PersonnelType[] | { results: PersonnelType[] };
+      // Gérer le cas où response est déjà un tableau ou contient une propriété results
+      const personnelData: PersonnelType[] = Array.isArray(response)
+        ? response
+        : 'results' in response
+          ? response.results
+          : [];
+      setPersonnel(personnelData)
     } catch (error) {
+      console.error('Erreur lors du chargement du personnel:', error)
       setPersonnel([])
     }
   }
 
+  // Vérifier si une présence existe déjà pour ce jour et ce membre du personnel ou employé
+  const checkExistingPresence = (id: number, date: string, type: 'personnel' | 'employe'): boolean => {
+    const todayPresences = presences.filter(p => p.date_jour === date);
+    return todayPresences.some(p => 
+      type === 'personnel' 
+        ? p.personnel?.id === id 
+        : p.employe?.id === id
+    );
+  };
+
   const handleCreatePresence = async () => {
     try {
-      let data = { ...formData };
-      if (presenceType === "personnel") {
-        data = { ...data, personnel_id: selectedPersonnel };
+      // Vérifier que les champs requis sont remplis
+      if (presenceType === "personnel" && !selectedPersonnel) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez sélectionner un membre du personnel",
+          variant: "destructive",
+        });
+        return;
       }
-      const response = await apiClient.createPresence(data);
-      console.log("Réponse création présence:", response);
+
+      // Forcer la date du jour
+      const today = new Date().toISOString().split("T")[0];
+      
+      // Vérifier côté client si une présence existe déjà
+      if (presenceType === "personnel") {
+        const personnelId = parseInt(selectedPersonnel);
+        if (checkExistingPresence(personnelId, today, 'personnel')) {
+          toast({
+            title: "Erreur",
+            description: "Une présence a déjà été enregistrée pour ce membre du personnel aujourd'hui",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else {
+        // Vérification pour l'employé connecté
+        console.log("Vérification de l'utilisateur connecté:", currentUser);
+        if (!currentUser) {
+          console.error("Aucun utilisateur connecté détecté");
+          toast({
+            title: "Erreur",
+            description: "Veuillez vous reconnecter pour enregistrer votre présence",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        if (checkExistingPresence(currentUser.id, today, 'employe')) {
+          toast({
+            title: "Erreur",
+            description: "Vous avez déjà enregistré votre présence aujourd'hui",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      // Préparer les données selon le type de présence (personnel ou employé)
+      const requestData: {
+        date: string;
+        present: boolean;
+        commentaire?: string;
+        personnel_id?: number;
+        employe_id?: number;
+      } = {
+        date: today, // Toujours utiliser la date du jour
+        present: formData.statut === "PRESENT",
+        commentaire: formData.statut === "PRESENT" ? `Heure d'arrivée: ${formData.heure_arrivee}` : "Absent"
+      };
+
+      // Ajouter l'ID du personnel ou de l'employé selon le type
+      if (presenceType === "personnel") {
+        requestData.personnel_id = parseInt(selectedPersonnel);
+      } else {
+        // Pour la présence de l'employé connecté
+        if (!currentUser) {
+          throw new Error("Utilisateur non connecté");
+        }
+        requestData.employe_id = currentUser.id;
+      }
+      
+      console.log("Données envoyées à l'API:", requestData);
+      try {
+        const response = await apiClient.createPresence(requestData);
+        toast({
+          title: "Succès",
+          description: "La présence a été enregistrée avec succès",
+        });
+      } catch (error: any) {
+        console.error("Erreur lors de la création de la présence:", error);
+        
+        let errorMessage = "Une erreur est survenue lors de l'enregistrement de la présence";
+        
+        // Si le message d'erreur est déjà bien formaté
+        if (error.message && error.message !== 'Bad Request') {
+          errorMessage = error.message;
+        }
+        
+        // Message spécifique pour les erreurs de doublon
+        if (
+          error.status === 400 && 
+          (error.message.includes("existe déjà") || 
+           error.message.includes("déjà enregistré") ||
+           error.message.includes("déjà existant"))
+        ) {
+          errorMessage = presenceType === "personnel" 
+            ? "Une présence a déjà été enregistrée pour ce membre du personnel aujourd'hui"
+            : "Vous avez déjà enregistré votre présence aujourd'hui";
+        }
+        
+        toast({
+          title: "Erreur",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        return;
+      }
       setIsCreateDialogOpen(false);
       resetForm();
       loadPresences();
@@ -133,56 +276,60 @@ export function PresenceManagement() {
   }
 
   const handleUpdatePresence = async () => {
-    if (!selectedPresence) return
+    if (!selectedPresence) return;
     try {
-      const data = { ...formData }
-      if (data.statut === "ABSENT") {
-        delete data.heure_arrivee
-      }
-      await apiClient.updatePresence(selectedPresence.id, data)
-      setIsEditDialogOpen(false)
-      resetForm()
-      loadPresences()
+      const updateData = {
+        statut: formData.statut,
+        heure_arrivee: formData.heure_arrivee,
+      };
+      
+      await apiClient.updatePresence(selectedPresence.id, updateData);
+      await loadPresences();
+      setIsEditDialogOpen(false);
       toast({
         title: "Modification réussie",
         description: "La présence a été modifiée.",
         duration: 5000,
-      })
+      });
     } catch (error) {
       toast({
         title: "Erreur",
         description: "La modification a échoué.",
         variant: "destructive",
         duration: 5000,
-      })
+      });
     }
-  }
+  };
 
   const handleDeletePresence = async (id: number) => {
-      try {
-        await apiClient.deletePresence(id)
-      setLoading(true)
-      await loadPresences()
+    // Supprimer directement sans confirmation
+    try {
+      setLoading(true);
+      await apiClient.deletePresence(id);
+      await loadPresences();
       toast({
         title: "Suppression réussie",
-        description: "La présence a été supprimée.",
+        description: "L'enregistrement de présence a été supprimé avec succès.",
         duration: 5000,
-      })
-      } catch (error) {
+      });
+    } catch (error) {
+      console.error("Erreur lors de la suppression de la présence:", error);
       toast({
         title: "Erreur",
-        description: "La suppression a échoué.",
+        description: "Une erreur est survenue lors de la suppression de l'enregistrement.",
         variant: "destructive",
         duration: 5000,
-      })
+      });
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
   const resetForm = () => {
     setFormData({
       date_jour: new Date().toISOString().split("T")[0],
       statut: "PRESENT",
-      heure_arrivee: "",
+      heure_arrivee: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
     })
     setSelectedPersonnel("")
     setSelectedPresence(null)
@@ -194,7 +341,7 @@ export function PresenceManagement() {
     setFormData({
       date_jour: presence.date_jour,
       statut: presence.statut,
-      heure_arrivee: presence.heure_arrivee,
+      heure_arrivee: presence.heure_arrivee || "12:00", // Valeur par défaut si vide
     })
     setIsEditDialogOpen(true)
   }
@@ -313,14 +460,13 @@ export function PresenceManagement() {
                     )}
                     
                     <div className="space-y-2">
-                      <Label htmlFor="date_jour">Date</Label>
-                    <Input
-                        id="date_jour"
-                      type="date"
-                        value={formData.date_jour}
-                        onChange={(e) => setFormData({ ...formData, date_jour: e.target.value })}
-                    />
-                  </div>
+                      <Label>Date</Label>
+                      <div className="p-2 border rounded-md bg-gray-100 text-gray-700">
+                        {new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                      </div>
+                      <p className="text-sm text-gray-500">Seule la date du jour est autorisée</p>
+                    </div>
+                    
                     <div className="space-y-2">
                       <Label htmlFor="statut">Statut</Label>
                       <Select
@@ -382,7 +528,7 @@ export function PresenceManagement() {
                 </TableRow>
               ) : (
                 Object.entries(groupedPresences).map(([date, dayPresences]) => (
-                  <>
+                  <React.Fragment key={`date-group-${date}`}>
                     {/* Séparateur de date */}
                     <TableRow key={`date-${date}`} className="bg-gray-50">
                       <TableCell colSpan={6} className="text-center font-semibold text-gray-700 py-3">
@@ -394,62 +540,80 @@ export function PresenceManagement() {
                     </TableRow>
                     {/* Présences du jour */}
                     {dayPresences.map((presence) => (
-                      <TableRow key={presence.id}>
+                      <TableRow key={`presence-${presence.id}`}>
                         <TableCell className="font-medium">
                           {presence.personnel ? (
-                            <>
+                            <span key={`personnel-${presence.id}`}>
                               <User className="h-4 w-4 mr-2 inline" />
                               {presence.personnel.prenom} {presence.personnel.nom}
-                            </>
+                            </span>
                           ) : (
-                            <>
+                            <span key={`employe-${presence.id}`}>
                               <User className="h-4 w-4 mr-2 inline" />
                               {presence.employe?.prenom} {presence.employe?.nom}
-                            </>
+                            </span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell key={`type-${presence.id}`}>
                           <Badge variant="outline">
                             {presence.personnel ? "Personnel" : "Employé"}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell key={`date-cell-${presence.id}`}>
                           <div className="flex items-center">
                             <Calendar className="h-4 w-4 mr-2" />
                             {new Date(presence.date_jour).toLocaleDateString("fr-FR")}
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell key={`status-${presence.id}`}>
                           <Badge className={presence.statut === "PRESENT" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
                             {presence.statut === "PRESENT" ? (
-                              <>
+                              <span key={`present-${presence.id}`}>
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 Présent
-                              </>
+                              </span>
                             ) : (
-                              <>
+                              <span key={`absent-${presence.id}`}>
                                 <XCircle className="h-3 w-3 mr-1" />
                                 Absent
-                              </>
+                              </span>
                             )}
                           </Badge>
                         </TableCell>
-                        <TableCell>{presence.heure_arrivee || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell key={`time-${presence.id}`}>
+                          {presence.heure_arrivee || "-"}
+                        </TableCell>
+                        <TableCell key={`actions-${presence.id}`}>
                           <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={() => openEditDialog(presence)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <ConfirmDeleteButton onDelete={() => handleDeletePresence(presence.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </ConfirmDeleteButton>
-                            </Button>
-                          </div>
+                            <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedPresence(presence);
+                            setFormData({
+                              date_jour: presence.date_jour,
+                              statut: presence.statut,
+                              heure_arrivee: presence.heure_arrivee || ""
+                            });
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => handleDeletePresence(presence.id)}
+                          disabled={loading}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                         </TableCell>
                       </TableRow>
                     ))}
-                  </>
+                  </React.Fragment>
                 ))
               )}
             </TableBody>

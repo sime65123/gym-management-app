@@ -37,14 +37,31 @@ export function InvoiceManagement() {
   const [searchTerm, setSearchTerm] = useState("")
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
 
+  // Remove ApiResponse interface since we're not using it anymore
+
   useEffect(() => {
     loadFactures()
   }, [])
 
   const loadFactures = async () => {
     try {
-      const response = await apiClient.getFactures()
-      setFactures(response.results || response)
+      const response = await apiClient.getPaiements()
+      // Transform Paiement[] to Facture[]
+      const facturesData = (Array.isArray(response) ? response : []).map(paiement => ({
+        id: paiement.id,
+        uuid: `FACT-${paiement.reference || paiement.id}`,
+        date_generation: new Date().toISOString(),
+        paiement: {
+          id: paiement.id,
+          client: paiement.client_nom ? `${paiement.client_prenom} ${paiement.client_nom}` : 'Client inconnu',
+          montant: paiement.montant,
+          date_paiement: paiement.date_paiement,
+          status: paiement.statut,
+          mode_paiement: paiement.mode_paiement,
+        },
+        fichier_pdf_url: '' // You might want to update this based on your API response
+      }));
+      setFactures(facturesData)
     } catch (error) {
       console.error("Erreur lors du chargement des factures:", error)
     } finally {

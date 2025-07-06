@@ -33,35 +33,113 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
 
   const loadEmployeeData = async () => {
     try {
-      const [reservationsData, seancesData, presencesData, paiementsData] = await Promise.all([
-        apiClient.getReservations(),
-        apiClient.getSeances(),
-        apiClient.getPresences(),
-        apiClient.getPaiements(),
-      ])
+      // Initialiser les données par défaut
+      let reservationsData: any[] = []
+      let seancesData: any[] = []
+      let presencesData: any[] = []
+      let paiementsData: any[] = []
+      
+      try {
+        // Essayer de charger les données en parallèle
+        const results = await Promise.allSettled([
+          apiClient.getReservations(),
+          apiClient.getSeances(),
+          apiClient.getPresences(),
+          apiClient.getPaiements(),
+        ])
+        
+        // Traiter chaque résultat
+        if (results[0].status === 'fulfilled') {
+          reservationsData = results[0].value as any[]
+        } else {
+          console.error('Erreur lors du chargement des réservations:', results[0].reason)
+        }
+        
+        if (results[1].status === 'fulfilled') {
+          seancesData = results[1].value as any[]
+        } else {
+          console.error('Erreur lors du chargement des séances:', results[1].reason)
+        }
+        
+        if (results[2].status === 'fulfilled') {
+          presencesData = results[2].value as any[]
+        } else {
+          console.error('Erreur lors du chargement des présences:', results[2].reason)
+        }
+        
+        if (results[3].status === 'fulfilled') {
+          paiementsData = results[3].value as any[]
+        } else {
+          console.error('Erreur lors du chargement des paiements:', results[3].reason)
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des données:', error)
+      }
+
+      if (!Array.isArray(reservationsData) && reservationsData && Array.isArray(reservationsData.results)) {
+        reservationsData = reservationsData.results;
+      }
+      if (!Array.isArray(seancesData) && seancesData && Array.isArray(seancesData.results)) {
+        seancesData = seancesData.results;
+      }
+      if (!Array.isArray(presencesData) && presencesData && Array.isArray(presencesData.results)) {
+        presencesData = presencesData.results;
+      }
+      if (!Array.isArray(paiementsData) && paiementsData && Array.isArray(paiementsData.results)) {
+        paiementsData = paiementsData.results;
+      }
 
       const today = new Date().toISOString().split("T")[0]
-      const todayReservations =
-        reservationsData.results?.filter(
-          (r: any) => new Date(r.seance.date_heure).toISOString().split("T")[0] === today,
-        ).length || 0
+      
+      // Somme des montants des réservations validées (statut CONFIRMEE)
+      const reservationsValidees = reservationsData.filter(
+        (r: any) => r.statut === 'CONFIRMEE'
+      ).reduce((sum: number, r: any) => {
+        const montant = typeof r.montant === 'string' ? parseFloat(r.montant) : (r.montant || 0)
+        return sum + montant
+      }, 0) || 0
 
-      const myPresenceToday =
-        presencesData.results?.some(
-          (p: any) => p.date === today && p.employe === `${user.prenom} ${user.nom}` && p.present,
-        ) || false
+      // Somme des montants des réservations effectuées aujourd'hui par les clients
+      const reservationsAujourdhui = reservationsData.filter(
+        (r: any) => {
+          const reservationDate = r.created_at ? new Date(r.created_at).toISOString().split("T")[0] : null
+          return reservationDate === today
+        }
+      ).reduce((sum: number, r: any) => {
+        const montant = typeof r.montant === 'string' ? parseFloat(r.montant) : (r.montant || 0)
+        return sum + montant
+      }, 0) || 0
 
-      const paiementsEnAttente = paiementsData.results?.filter((p: any) => p.status === "EN_ATTENTE").length || 0
+      // Ma présence aujourd'hui
+      const myPresenceToday = presencesData.some(
+        (p: any) => {
+          const presenceDate = p.date_jour || p.date
+          return presenceDate === today && 
+                 p.employe && 
+                 (p.employe.id === user.id || 
+                  p.employe === `${user.prenom} ${user.nom}` || 
+                  p.employe_id === user.id) && 
+                 p.statut === "PRESENT"
+        }
+      ) || false
+
+      // Somme des montants des réservations en attente (non confirmées)
+      const reservationsEnAttente = reservationsData.filter(
+        (r: any) => r.statut === 'EN_ATTENTE'
+      ).reduce((sum: number, r: any) => {
+        const montant = typeof r.montant === 'string' ? parseFloat(r.montant) : (r.montant || 0)
+        return sum + montant
+      }, 0) || 0
 
       setStats({
-        totalReservations: reservationsData.results?.length || 0,
-        todayReservations,
-        totalSeances: seancesData.results?.length || 0,
+        totalReservations: reservationsValidees,
+        todayReservations: reservationsAujourdhui,
+        totalSeances: seancesData.length || 0,
         myPresenceToday,
-        paiementsEnAttente,
+        paiementsEnAttente: reservationsEnAttente,
       })
     } catch (error) {
-      console.error("Erreur lors du chargement des données:", error)
+      console.error("Erreur inattendue lors du chargement des données:", error)
     } finally {
       setLoading(false)
     }
@@ -105,11 +183,11 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Réservations Totales</CardTitle>
+            <CardTitle className="text-sm font-medium">Réservations Totalement Validées</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.totalReservations}</div>
+            <div className="text-2xl font-bold text-blue-600">{stats.totalReservations.toLocaleString()} FCFA</div>
           </CardContent>
         </Card>
 
@@ -119,7 +197,7 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.todayReservations}</div>
+            <div className="text-2xl font-bold text-green-600">{stats.todayReservations.toLocaleString()} FCFA</div>
           </CardContent>
         </Card>
 
@@ -147,11 +225,11 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Paiements en Attente</CardTitle>
+            <CardTitle className="text-sm font-medium">Réservations en Attente</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats.paiementsEnAttente}</div>
+            <div className="text-2xl font-bold text-orange-600">{stats.paiementsEnAttente.toLocaleString()} FCFA</div>
           </CardContent>
         </Card>
       </div>

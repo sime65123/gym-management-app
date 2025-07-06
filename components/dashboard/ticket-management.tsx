@@ -5,8 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Trash2, Eye, FileText, Calendar, Clock } from "lucide-react"
-import { apiClient } from "@/lib/api"
-import { Ticket } from "@/lib/api"
+import { apiClient, Ticket } from "@/lib/api"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { useToast } from "@/components/ui/use-toast"
@@ -24,7 +23,13 @@ export function TicketManagement() {
     try {
       setLoading(true)
       const data = await apiClient.getTickets()
-      setTickets(Array.isArray(data) ? data : data?.results || [])
+      // Gérer les différents formats de réponse possibles
+      const ticketsData = Array.isArray(data) 
+        ? data 
+        : (data && typeof data === 'object' && 'results' in data && Array.isArray((data as any).results))
+          ? (data as any).results 
+          : [];
+      setTickets(ticketsData)
     } catch (error) {
       console.error("Erreur lors du chargement des tickets:", error)
       toast({
@@ -41,7 +46,19 @@ export function TicketManagement() {
     if (!confirm("Êtes-vous sûr de vouloir supprimer ce ticket ?")) return
     
     try {
-      await apiClient.delete(`/tickets/${ticketId}/`)
+      // Utiliser fetch directement car deleteTicket n'existe pas dans l'API client
+      const response = await fetch(`http://127.0.0.1:8000/api/tickets/${ticketId}/`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}: ${response.statusText}`)
+      }
+      
       toast({
         title: "Succès",
         description: "Ticket supprimé avec succès",

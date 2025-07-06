@@ -159,10 +159,19 @@ export default function HomePage() {
     setLoginLoading(true)
 
     try {
-      await login(loginData.email, loginData.password)
+      // Appeler la fonction login qui va maintenant retourner l'utilisateur connecté
+      const user = await login(loginData.email, loginData.password)
+      
+      // Mettre à jour les états
       setIsLoginDialogOpen(false)
       setLoginData({ email: "", password: "" })
+      
+      // La redirection est maintenant gérée dans le contexte d'authentification
+      // après la mise à jour de l'état utilisateur
+      
+      console.log('Utilisateur connecté avec succès:', user)
     } catch (error: any) {
+      console.error('Erreur lors de la connexion:', error)
       setLoginError(error.message || "Erreur de connexion")
     } finally {
       setLoginLoading(false)

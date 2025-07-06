@@ -1,325 +1,208 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Calendar, Users, Trash2, CheckCircle, XCircle, Clock, RotateCcw, FileText } from "lucide-react"
+import { CheckCircle, XCircle, RotateCcw, FileText, Calendar, ShoppingCart, Eye } from "lucide-react"
 import { apiClient } from "@/lib/api"
-import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
-import { Reservation as ReservationType, Ticket } from "@/lib/api"
+import { Reservation as ReservationType } from "@/lib/api"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export function ReservationManagement() {
   const [reservations, setReservations] = useState<ReservationType[]>([])
-  const [ticketsByReservation, setTicketsByReservation] = useState<Record<number, Ticket[]>>({})
   const [loading, setLoading] = useState(true)
-  const [filterStatus, setFilterStatus] = useState<string>("all")
+  const [validationDialog, setValidationDialog] = useState<{open: boolean, reservation: ReservationType | null}>({
+    open: false,
+    reservation: null
+  })
+  const [montant, setMontant] = useState("")
+  const [validating, setValidating] = useState(false)
   const { toast } = useToast()
-  const [abonnements, setAbonnements] = useState<any[]>([])
-  const abonnementsLoaded = useRef(false)
-
-  useEffect(() => {
-    loadReservations()
-    if (!abonnementsLoaded.current) {
-      loadAbonnements()
-      abonnementsLoaded.current = true
-    }
-  }, [])
+  const [search, setSearch] = useState("")
+  
+  interface ApiResponse {
+    results: ReservationType[];
+    [key: string]: any;
+  }
 
   const loadReservations = async () => {
+    console.log("Début du chargement des réservations...");
     try {
-      const response = await apiClient.getReservations()
-      const reservations = [...(response.results || response)]
-      setReservations(reservations)
-      // Récupérer les tickets pour chaque réservation
-      const ticketsMap: Record<number, Ticket[]> = {}
-      for (const reservation of reservations) {
-        ticketsMap[reservation.id] = await apiClient.getTicketsByReservation(reservation.id)
+      setLoading(true);
+      
+      console.log("Chargement des réservations...");
+      const reservations = await apiClient.getReservations();
+      
+      // Trier les réservations par date de création (les plus récentes en premier)
+      const sortedReservations = [...reservations].sort((a, b) => {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateB - dateA;
+      });
+      
+      console.log("Réservations chargées et triées:", sortedReservations);
+      setReservations(sortedReservations);
+      
+    } catch (error: unknown) {
+      console.error("Erreur lors du chargement des réservations:", error);
+      
+      let errorMessage = "Impossible de charger les réservations";
+      if (error instanceof Error) {
+        errorMessage += `: ${error.message}`;
       }
-      setTicketsByReservation(ticketsMap)
-    } catch (error) {
-      console.error("Erreur lors du chargement des réservations:", error)
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      // Réinitialiser la liste des réservations en cas d'erreur
+      setReservations([]);
     } finally {
-      setLoading(false)
+      console.log("Fin du chargement des données");
+      setLoading(false);
     }
   }
-
-  const loadAbonnements = async () => {
-    try {
-      const response = await apiClient.getAbonnements()
-      setAbonnements([...(response.results || response)])
-    } catch (error) {
-      console.error("Erreur lors du chargement des abonnements:", error)
-    }
-  }
-
-  const handleUpdateStatus = async (id: number, newStatus: "CONFIRMEE" | "ANNULEE") => {
-    try {
-      await apiClient.updateReservation(id, { statut: newStatus })
-      loadReservations()
-      toast({
-        title: newStatus === "CONFIRMEE" ? "Réservation confirmée" : "Réservation annulée",
-        description: newStatus === "CONFIRMEE" ? "La réservation a été confirmée." : "La réservation a été annulée.",
-        duration: 5000,
-      })
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "La mise à jour a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }
-
-  const handleDeleteReservation = async (id: number) => {
-      try {
-        await apiClient.deleteReservation(id)
-      setReservations(prev => {
-        const newList = prev.filter(r => r.id !== id)
-        console.log('Liste réservations après suppression:', newList)
-        return newList
-      })
-      toast({
-        title: "Suppression réussie",
-        description: "La réservation a été supprimée.",
-        duration: 5000,
-      })
-      } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "La suppression a échoué.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
-  }
+    
+  useEffect(() => {
+    loadReservations()
+  }, [])
 
   const handleValiderReservation = async (id: number) => {
     try {
-      await apiClient.validerReservation(id)
-      loadReservations()
+      const reservation = reservations.find(r => r.id === id)
+      if (!reservation) {
       toast({
-        title: "Réservation validée",
-        description: "La réservation a été validée et la facture générée.",
-        duration: 5000,
+          title: "Erreur",
+          description: "Réservation introuvable",
+          variant: "destructive"
+        })
+        return
+      }
+      
+      // Ouvrir le modal de validation avec saisie du montant
+      setValidationDialog({
+        open: true,
+        reservation: reservation
       })
+      setMontant("")
     } catch (error) {
+      console.error("Erreur lors de la validation:", error)
       toast({
         title: "Erreur",
-        description: "La validation a échoué.",
-        variant: "destructive",
-        duration: 5000,
+        description: "La validation de la réservation a échoué.",
+        variant: "destructive"
       })
     }
   }
 
-  const handleViewTicket = (ticketUrl: string, reservation: ReservationType) => {
-    if (!ticketUrl) return;
+  const handleConfirmValidation = async () => {
+    if (!validationDialog.reservation) return
+    
+    try {
+      setValidating(true)
+      
+      // Nettoyer le montant saisi (supprimer les espaces insécables et autres caractères non numériques)
+      const montantNettoye = montant.replace(/\s+/g, '').replace(',', '.')
+      const montantValue = parseFloat(montantNettoye)
+      
+      if (isNaN(montantValue) || montantValue <= 0) {
+        throw new Error("Veuillez entrer un montant valide supérieur à zéro")
+      }
+      
+      // Récupérer les détails de la réservation
+      const reservation = validationDialog.reservation
+      const montantTotal = reservation.montant || 0
+      const montantDejaPaye = parseFloat(reservation.montant_total_paye || '0') || 0
+      const resteAPayer = montantTotal - montantDejaPaye
+      
+      // Vérifier que le montant saisi ne dépasse pas le reste à payer
+      if (montantValue > resteAPayer) {
+        const errorMessage = `Impossible de traiter ce montant. Saisissez un montant correct pour l'abonnement.`;
+        toast({
+          title: "Montant invalide",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        setValidating(false);
+        return; // On sort de la fonction sans lancer d'erreur
+      }
+      
+      // Appeler l'API avec le montant saisi
+      const response = await apiClient.validerReservation(reservation.id, { 
+        montant: montantValue 
+      })
+      
+      // Recharger les réservations
+      await loadReservations()
+      
+      // Fermer le dialogue et réinitialiser le formulaire
+      setValidationDialog({ open: false, reservation: null })
+      setMontant("")
+      
+      // Afficher le message approprié selon la réponse
+      if (resteAPayer > montantValue) {
+        toast({
+          title: "Paiement partiel enregistré",
+          description: `Paiement de ${montantValue.toLocaleString('fr-FR')} FCFA enregistré. Il reste ${(resteAPayer - montantValue).toLocaleString('fr-FR')} FCFA à payer.`
+        })
+      } else {
+        toast({
+          title: "Réservation validée",
+          description: `La réservation a été entièrement payée pour un montant de ${montantValue.toLocaleString('fr-FR')} FCFA.`
+        })
+      }
+    } catch (error) {
+      console.error("Erreur lors de la validation:", error)
+      
+      // Extraire le message d'erreur de la réponse
+      let errorMessage = "La validation de la réservation a échoué."
+      if (error && typeof error === 'object' && 'response' in error) {
+        try {
+          const errorResponse = error as { response: { json: () => Promise<{ error?: string; message?: string }> } }
+          const errorData = await errorResponse.response.json()
+          errorMessage = errorData.error || errorData.message || errorMessage
+        } catch (e) {
+          // Si on ne peut pas parser la réponse JSON, on utilise le status
+          const statusError = error as { response: { status: number } }
+          if (statusError.response.status === 400) {
+            errorMessage = "Données invalides. Vérifiez le montant saisi."
+          } else if (statusError.response.status === 404) {
+            errorMessage = "Réservation introuvable."
+          } else if (statusError.response.status === 403) {
+            errorMessage = "Vous n'avez pas les permissions pour valider cette réservation."
+          }
+        }
+      }
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive"
+      })
+    } finally {
+      setValidating(false)
+    }
+  }
 
-    // Créer une nouvelle fenêtre pour l'aperçu
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  const handleViewTicket = (reservation: ReservationType) => {
+    if (!reservation.ticket_url) {
+      toast({
+        title: "Ticket non disponible",
+        description: "Le ticket n'est pas encore disponible pour cette réservation.",
+        variant: "destructive"
+      })
+      return
+    }
 
-    // Récupérer les informations de la réservation
-    const seanceInfo = reservation.seance;
-    const clientName = reservation.client_nom || (typeof reservation.client === 'object' ? reservation.client.nom : 'Client');
-    const seanceTitle = seanceInfo?.titre || 'Séance de sport';
-    const seanceDate = seanceInfo?.date_heure ? new Date(seanceInfo.date_heure).toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }) : 'Date non définie';
-
-    // Créer le contenu HTML pour l'aperçu
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html lang="fr">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Ticket GYM ZONE</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-        <style>
-          body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; color: #1a1a1a; }
-          .ticket-container { max-width: 600px; margin: 0 auto; padding: 24px; }
-          .header { text-align: center; margin-bottom: 24px; }
-          .logo { 
-            width: 80px; 
-            height: 80px; 
-            border-radius: 50%; 
-            object-fit: cover;
-            border: 3px solid white;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            margin: 0 auto 12px;
-          }
-          .title { 
-            font-size: 24px; 
-            font-weight: 700; 
-            color: #7c3aed;
-            margin: 0;
-            letter-spacing: -0.5px;
-          }
-          .subtitle {
-            color: #6b7280;
-            margin: 4px 0 0;
-            font-size: 14px;
-          }
-          .ticket { 
-            background: white; 
-            border-radius: 12px; 
-            overflow: hidden;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
-            margin-bottom: 24px;
-          }
-          .ticket-header { 
-            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-            color: white; 
-            padding: 16px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-          .ticket-title { 
-            font-size: 18px; 
-            font-weight: 600; 
-            margin: 0;
-          }
-          .ticket-body { padding: 24px; }
-          .info-row { 
-            display: flex; 
-            margin-bottom: 16px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #f3f4f6;
-          }
-          .info-row:last-child { 
-            margin-bottom: 0;
-            border-bottom: none;
-          }
-          .info-label { 
-            font-weight: 500; 
-            color: #6b7280;
-            min-width: 120px;
-          }
-          .info-value { flex: 1; font-weight: 500; }
-          .barcode {
-            text-align: center;
-            padding: 16px 0;
-            margin-top: 24px;
-            background: #f9fafb;
-            border-radius: 8px;
-          }
-          .barcode-text {
-            font-family: monospace;
-            letter-spacing: 4px;
-            font-size: 24px;
-            color: #1f2937;
-            margin-top: 8px;
-          }
-          .print-button {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            background: #7c3aed;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 24px;
-            transition: background 0.2s;
-          }
-          .print-button:hover {
-            background: #6d28d9;
-          }
-          @media print {
-            .print-button { display: none; }
-            body { padding: 20px; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="ticket-container">
-          <div class="header">
-            <img src="/lg1.jpg" alt="GYM ZONE Logo" class="logo">
-            <h1 class="title">GYM ZONE</h1>
-            <p class="subtitle">Votre billet d'accès</p>
-          </div>
-          
-          <div class="ticket">
-            <div class="ticket-header">
-              <h2 class="ticket-title">${seanceTitle}</h2>
-              <div class="ticket-badge">Billet</div>
-            </div>
-            <div class="ticket-body">
-              <div class="info-row">
-                <div class="info-label">Client</div>
-                <div class="info-value">${clientName}</div>
-              </div>
-              <div class="info-row">
-                <div class="info-label">Date & Heure</div>
-                <div class="info-value">${seanceDate}</div>
-              </div>
-              <div class="info-row">
-                <div class="info-label">Statut</div>
-                <div class="info-value"><strong style="color: #10b981;">Confirmé</strong></div>
-              </div>
-              
-              <div class="barcode">
-                <svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="10" y="10" width="4" height="40" fill="#1f2937"/>
-                  <rect x="18" y="15" width="3" height="30" fill="#1f2937"/>
-                  <rect x="26" y="10" width="2" height="40" fill="#1f2937"/>
-                  <rect x="32" y="20" width="3" height="30" fill="#1f2937"/>
-                  <rect x="40" y="10" width="1" height="40" fill="#1f2937"/>
-                  <rect x="46" y="15" width="3" height="35" fill="#1f2937"/>
-                  <rect x="54" y="10" width="2" height="40" fill="#1f2937"/>
-                  <rect x="60" y="5" width="1" height="45" fill="#1f2937"/>
-                  <rect x="66" y="10" width="3" height="40" fill="#1f2937"/>
-                  <rect x="74" y="20" width="2" height="30" fill="#1f2937"/>
-                  <rect x="80" y="10" width="1" height="40" fill="#1f2937"/>
-                  <rect x="86" y="15" width="3" height="35" fill="#1f2937"/>
-                  <rect x="94" y="10" width="2" height="40" fill="#1f2937"/>
-                  <rect x="100" y="5" width="1" height="45" fill="#1f2937"/>
-                  <rect x="106" y="10" width="3" height="40" fill="#1f2937"/>
-                  <rect x="114" y="20" width="2" height="30" fill="#1f2937"/>
-                  <rect x="120" y="10" width="1" height="40" fill="#1f2937"/>
-                  <rect x="126" y="15" width="3" height="35" fill="#1f2937"/>
-                  <rect x="134" y="10" width="2" height="40" fill="#1f2937"/>
-                  <rect x="140" y="5" width="1" height="45" fill="#1f2937"/>
-                  <rect x="146" y="10" width="3" height="40" fill="#1f2937"/>
-                  <rect x="154" y="20" width="2" height="30" fill="#1f2937"/>
-                  <rect x="160" y="10" width="1" height="40" fill="#1f2937"/>
-                  <rect x="166" y="15" width="3" height="35" fill="#1f2937"/>
-                  <rect x="174" y="10" width="2" height="40" fill="#1f2937"/>
-                  <rect x="180" y="20" width="3" height="30" fill="#1f2937"/>
-                  <rect x="188" y="10" width="2" height="40" fill="#1f2937"/>
-                </svg>
-                <div class="barcode-text">GYMZ-${reservation.id.toString().padStart(6, '0')}</div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="footer" style="text-align: center; margin-top: 32px; color: #6b7280; font-size: 13px;">
-            <p>Merci de présenter ce billet à l'accueil</p>
-            <p>GYM ZONE • contact@gymzone.com • +225 XX XX XX XX</p>
-          </div>
-          
-          <button class="print-button" onclick="window.print()">Imprimer le billet</button>
-        </div>
-      </body>
-      </html>
-    `;
-
-    // Écrire le contenu dans la nouvelle fenêtre
-    printWindow.document.open();
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    // Ouvrir le ticket dans un nouvel onglet
+    window.open(reservation.ticket_url, '_blank')
   }
 
   const getStatusBadge = (status: string) => {
@@ -338,101 +221,84 @@ export function ReservationManagement() {
             Annulée
           </Badge>
         )
+      case "EN_ATTENTE":
+        return (
+          <Badge className="bg-yellow-100 text-yellow-800">
+            En attente
+          </Badge>
+        )
       default:
-        return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>
+        return <Badge variant="outline">{status}</Badge>
     }
   }
 
-  const filteredReservations = reservations.filter((reservation) => {
-    if (filterStatus === "all") return true
-    return reservation.statut === filterStatus
-  })
-
-  const getReservationStats = () => {
-    const total = reservations.length
-    const confirmed = reservations.filter((r) => r.statut === "CONFIRMEE").length
-    const cancelled = reservations.filter((r) => r.statut === "ANNULEE").length
-    const today = new Date().toISOString().split("T")[0]
-    const todayReservations = reservations.filter(
-      (r) => new Date(r.seance.date_heure).toISOString().split("T")[0] === today,
-    ).length
-
-    return { total, confirmed, cancelled, todayReservations }
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "SEANCE":
+        return <Calendar className="h-4 w-4 text-blue-600" />
+      case "ABONNEMENT":
+        return <ShoppingCart className="h-4 w-4 text-green-600" />
+      default:
+        return <Calendar className="h-4 w-4 text-gray-600" />
+    }
   }
 
-  const stats = getReservationStats()
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch (error) {
+      return dateString
+    }
+  }
+
+  // Filtrage des réservations selon la recherche
+  const filteredReservations = reservations.filter(r =>
+    r.nom_client?.toLowerCase().includes(search.toLowerCase())
+  );
 
   if (loading) {
-    return <div className="flex justify-center p-8">Chargement...</div>
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <p className="text-muted-foreground">Chargement des réservations...</p>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Réservations</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Confirmées</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.confirmed}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Annulées</CardTitle>
-            <XCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.cancelled}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aujourd'hui</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{stats.todayReservations}</div>
-          </CardContent>
-        </Card>
-      </div>
-
       <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Gestion des Réservations</CardTitle>
-              <CardDescription>Consultez et gérez toutes les réservations</CardDescription>
-            </div>
-            <div className="flex gap-2 items-center">
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Toutes les réservations</SelectItem>
-                <SelectItem value="CONFIRMEE">Confirmées</SelectItem>
-                <SelectItem value="ANNULEE">Annulées</SelectItem>
-              </SelectContent>
-            </Select>
-              <Button variant="outline" onClick={loadReservations} title="Actualiser la liste">
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <div>
+            <CardTitle>Réservations des Clients</CardTitle>
+            <CardDescription>
+              Liste de toutes les réservations effectuées par les clients
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="text"
+              placeholder="Rechercher par nom du client..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-64"
+            />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={loadReservations} 
+            className="flex items-center gap-1"
+            disabled={loading}
+          >
+            <RotateCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Actualiser</span>
+          </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -440,109 +306,307 @@ export function ReservationManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>Client</TableHead>
-                <TableHead>Séance</TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Montant</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Date de création</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead>Billet</TableHead>
-                <TableHead>Facture</TableHead>
+                <TableHead>Ticket</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredReservations.map((reservation) => {
-                const tickets = ticketsByReservation[reservation.id] || []
-                const billet = tickets.find(t => t.type_ticket === "SEANCE")
-                const facture = tickets.find(t => t.type_ticket === "SEANCE" && t.paiement.status === "PAYE")
-                return (
-                  <TableRow key={reservation.id}>
-                    <TableCell>{reservation.client_nom || (typeof reservation.client === "object" ? reservation.client.nom : "-")}</TableCell>
-                    <TableCell>{reservation.seance && reservation.seance.titre}</TableCell>
-                    <TableCell>{reservation.seance && reservation.seance.date_heure ? new Date(reservation.seance.date_heure).toLocaleString("fr-FR") : "-"}</TableCell>
-                    <TableCell>{getStatusBadge(reservation.statut)}</TableCell>
-                    <TableCell>
-                      {billet && billet.fichier_pdf_url ? (
-                        <div className="flex gap-2">
+              {filteredReservations.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    Aucune réservation trouvée
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredReservations.map((reservation) => (
+                    <TableRow key={reservation.id}>
+                      <TableCell className="font-medium">
+                      {reservation.nom_client || "Client inconnu"}
+                      </TableCell>
+                      <TableCell>
+                      <div className="flex items-center gap-2">
+                        {getTypeIcon(reservation.type_reservation)}
+                        <span className="capitalize">
+                          {reservation.type_reservation === 'SEANCE' ? 'Séance' : 'Abonnement'}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-semibold">
+                      {reservation.type_reservation === 'SEANCE' && reservation.montant === 0 
+                        ? 'À définir' 
+                        : reservation.type_reservation === 'ABONNEMENT' 
+                          ? (
+                            <div className="space-y-1">
+                              <div className="text-sm">
+                                Total: {reservation.montant?.toLocaleString()} FCFA
+                              </div>
+                              {reservation.montant_total_paye && parseFloat(reservation.montant_total_paye) > 0 && (
+                                <div className="text-xs text-green-600">
+                                  Payé: {parseFloat(reservation.montant_total_paye).toLocaleString()} FCFA
+                                </div>
+                              )}
+                              {reservation.montant_total_paye && parseFloat(reservation.montant_total_paye) > 0 && 
+                               parseFloat(reservation.montant_total_paye) < (reservation.montant || 0) && (
+                                <div className="text-xs text-orange-600">
+                                  Reste: {((reservation.montant || 0) - parseFloat(reservation.montant_total_paye)).toLocaleString()} FCFA
+                                </div>
+                              )}
+                            </div>
+                          )
+                          : `${reservation.montant?.toLocaleString()} FCFA`}
+                    </TableCell>
+                    <TableCell className="max-w-xs truncate">
+                      {reservation.description || "Aucune description"}
+                      </TableCell>
+                      <TableCell>
+                      {reservation.created_at ? formatDate(reservation.created_at) : "-"}
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(reservation.statut)}
+                      </TableCell>
+                      <TableCell>
+                      {reservation.ticket_url ? (
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={() => handleViewTicket(billet.fichier_pdf_url, reservation)}
+                          onClick={() => handleViewTicket(reservation)}
                             className="flex items-center gap-1"
                           >
                             <FileText className="h-4 w-4" />
-                            <span>Voir le billet</span>
+                          <span>Voir le ticket</span>
                           </Button>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">Aucun</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {facture && facture.fichier_pdf_url ? (
-                        <a href={facture.fichier_pdf_url} target="_blank" rel="noopener noreferrer" className="text-green-600 underline">Télécharger</a>
-                      ) : (
-                        <span className="text-gray-400">Aucune</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {reservation.statut === "EN_ATTENTE" && (
-                        <Button size="sm" variant="success" onClick={() => handleValiderReservation(reservation.id)}>
-                          Valider
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Non disponible</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                      <div className="flex items-center gap-2">
+                        {reservation.statut === "EN_ATTENTE" ? (
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleValiderReservation(reservation.id)}
+                            disabled={loading}
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            Valider
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">
+                            {reservation.statut === "CONFIRMEE" ? "Déjà validée" : "-"}
+                          </span>
+                        )}
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleViewTicket(reservation)}
+                        >
+                          <Eye className="h-4 w-4" />
                         </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-
-          {filteredReservations.length === 0 && (
-            <div className="text-center py-8 text-gray-500">Aucune réservation trouvée</div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Abonnements réservés (tous clients) */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Réservations d'Abonnements</CardTitle>
-          <CardDescription>Liste de tous les abonnements réservés par les clients</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead>Abonnement</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Durée</TableHead>
-                <TableHead>Statut</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {abonnements.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center">Aucun abonnement réservé</TableCell>
-                </TableRow>
-              ) : (
-                abonnements.map((abonnement) => (
-                  <TableRow key={abonnement.id}>
-                    <TableCell>{abonnement.client_nom || abonnement.client?.nom || "-"}</TableCell>
-                    <TableCell>{abonnement.nom}</TableCell>
-                    <TableCell>{abonnement.description}</TableCell>
-                    <TableCell>{abonnement.duree_jours} jours</TableCell>
-                    <TableCell>
-                      <Badge className={abonnement.actif ? "bg-green-100 text-green-800" : "bg-gray-200 text-gray-600"}>
-                        {abonnement.actif ? "Actif" : "Expiré"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
+                      </div>
+                      </TableCell>
+                    </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
+
+          {reservations.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>Aucune réservation trouvée</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Les réservations effectuées par les clients apparaîtront ici
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Statistiques */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total</p>
+                <p className="text-2xl font-bold">{reservations.length}</p>
+              </div>
+              <Calendar className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">En attente</p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {reservations.filter(r => r.statut === 'EN_ATTENTE').length}
+                </p>
+              </div>
+              <div className="h-8 w-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                <div className="h-3 w-3 bg-yellow-600 rounded-full"></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Confirmées</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {reservations.filter(r => r.statut === 'CONFIRMEE').length}
+                </p>
+              </div>
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Montant total validé</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {(() => {
+                    const confirmedReservations = reservations.filter(r => r.statut === 'CONFIRMEE');
+                    const totalAmount = confirmedReservations.reduce((sum, r) => {
+                      // Convertir le montant en nombre
+                      const montant = typeof r.montant === 'string' ? parseFloat(r.montant) : (r.montant || 0);
+                      return sum + montant;
+                    }, 0);
+                    
+                    console.log('[DEBUG] Réservations confirmées:', confirmedReservations);
+                    console.log('[DEBUG] Montants individuels:', confirmedReservations.map(r => ({ 
+                      id: r.id, 
+                      montant: r.montant, 
+                      type: typeof r.montant,
+                      converted: typeof r.montant === 'string' ? parseFloat(r.montant) : r.montant
+                    })));
+                    console.log('[DEBUG] Montant total calculé:', totalAmount);
+                    
+                    return totalAmount.toLocaleString();
+                  })()} FCFA
+                </p>
+              </div>
+              <ShoppingCart className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+      </Card>
+      </div>
+
+      {/* Modal de validation avec saisie du montant */}
+      <Dialog open={validationDialog.open} onOpenChange={(open) => setValidationDialog({ open, reservation: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Valider la réservation</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-900">Réservation #{validationDialog.reservation?.id}</h4>
+              <p className="text-sm text-blue-700">
+                Client: {validationDialog.reservation?.nom_client}
+              </p>
+              <p className="text-sm text-blue-700">
+                Type: {validationDialog.reservation?.type_reservation === 'SEANCE' ? 'Séance' : 'Abonnement'}
+              </p>
+              <p className="text-sm text-blue-700">
+                Description: {validationDialog.reservation?.description || 'Aucune description'}
+              </p>
+              {validationDialog.reservation?.type_reservation === 'ABONNEMENT' && (
+                <div className="mt-3 space-y-1">
+                  <p className="text-sm text-blue-700">
+                    <span className="font-medium">Montant total:</span> {validationDialog.reservation.montant?.toLocaleString()} FCFA
+                  </p>
+                  {validationDialog.reservation.montant_total_paye && parseFloat(validationDialog.reservation.montant_total_paye) > 0 && (
+                    <p className="text-sm text-green-700">
+                      <span className="font-medium">Déjà payé:</span> {parseFloat(validationDialog.reservation.montant_total_paye).toLocaleString()} FCFA
+                    </p>
+                  )}
+                  {validationDialog.reservation.montant_total_paye && parseFloat(validationDialog.reservation.montant_total_paye) > 0 && 
+                   parseFloat(validationDialog.reservation.montant_total_paye) < (validationDialog.reservation.montant || 0) && (
+                    <p className="text-sm text-orange-700">
+                      <span className="font-medium">Reste à payer:</span> {((validationDialog.reservation.montant || 0) - parseFloat(validationDialog.reservation.montant_total_paye)).toLocaleString()} FCFA
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <Label htmlFor="montant">
+                {validationDialog.reservation?.type_reservation === 'ABONNEMENT' 
+                  ? 'Montant du paiement (FCFA)' 
+                  : 'Montant à facturer (FCFA)'}
+              </Label>
+              <Input
+                id="montant"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={montant}
+                onChange={(e) => {
+                  // N'autoriser que les chiffres
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setMontant(value);
+                }}
+                onBlur={(e) => {
+                  // Formater le nombre avec des espaces de milliers au blur
+                  const value = e.target.value.replace(/\s+/g, '');
+                  if (value) {
+                    setMontant(parseInt(value, 10).toLocaleString('fr-FR'));
+                  }
+                }}
+                placeholder={validationDialog.reservation?.type_reservation === 'ABONNEMENT' ? "Ex: 2 500" : "Ex: 5 000"}
+              />
+              {validationDialog.reservation?.type_reservation === 'ABONNEMENT' && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Vous pouvez saisir un montant partiel. La réservation sera confirmée uniquement quand le montant total sera payé.
+                </p>
+              )}
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setValidationDialog({ open: false, reservation: null })}
+                className="flex-1"
+                disabled={validating}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleConfirmValidation}
+                disabled={validating || !montant || parseFloat(montant) <= 0}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {validating ? (
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Validation...
+                  </div>
+                ) : (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Valider et facturer
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

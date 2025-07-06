@@ -56,14 +56,30 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
     setSuccess("")
 
     try {
-      // Vérifier que les mots de passe correspondent si un nouveau est fourni
+      // Validation des mots de passe
       if (formData.newPassword) {
-        if (formData.newPassword !== formData.confirmPassword) {
-          setError("Les nouveaux mots de passe ne correspondent pas")
+        if (!formData.currentPassword) {
+          setError("Le mot de passe actuel est requis pour modifier le mot de passe")
+          setLoading(false)
           return
         }
+        
+        if (formData.newPassword !== formData.confirmPassword) {
+          setError("Les nouveaux mots de passe ne correspondent pas")
+          setLoading(false)
+          return
+        }
+        
         if (formData.newPassword.length < 8) {
           setError("Le mot de passe doit contenir au moins 8 caractères")
+          setLoading(false)
+          return
+        }
+        
+        // Vérifier que le nouveau mot de passe est différent de l'ancien
+        if (formData.newPassword === formData.currentPassword) {
+          setError("Le nouveau mot de passe doit être différent de l'ancien")
+          setLoading(false)
           return
         }
       }
@@ -79,10 +95,7 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
       // Si un nouveau mot de passe est fourni, on l'ajoute
       if (formData.newPassword) {
         updateData.newPassword = formData.newPassword
-        // Si on change de mot de passe, on doit fournir l'ancien
-        if (formData.currentPassword) {
-          updateData.currentPassword = formData.currentPassword
-        }
+        updateData.currentPassword = formData.currentPassword
       }
 
       console.log('Données envoyées pour la mise à jour:', updateData)
@@ -116,12 +129,17 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
       // Afficher le toast de succès
       toast({
         title: "Profil mis à jour",
-        description: "Vos informations ont été mises à jour avec succès.",
+        description: formData.newPassword 
+          ? "Vos informations et votre mot de passe ont été mis à jour avec succès."
+          : "Vos informations ont été mises à jour avec succès.",
         duration: 5000,
       })
       
       // Mettre à jour le message de succès local
-      setSuccess("Profil mis à jour avec succès")
+      setSuccess(formData.newPassword 
+        ? "Profil et mot de passe mis à jour avec succès"
+        : "Profil mis à jour avec succès"
+      )
       
       // Cacher le message de succès après 5 secondes
       setTimeout(() => setSuccess(""), 5000)
@@ -141,6 +159,21 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
           errorMessage = apiError.detail
         } else if (apiError.non_field_errors) {
           errorMessage = apiError.non_field_errors.join(", ")
+        } else if (apiError.errors) {
+          // Gérer les erreurs de validation du backend
+          if (typeof apiError.errors === 'object') {
+            const errorMessages = [];
+            for (const [field, errors] of Object.entries(apiError.errors)) {
+              if (Array.isArray(errors)) {
+                errorMessages.push(`${field}: ${errors.join(', ')}`);
+              } else {
+                errorMessages.push(`${field}: ${errors}`);
+              }
+            }
+            errorMessage = errorMessages.join('\n');
+          } else {
+            errorMessage = String(apiError.errors);
+          }
         } else {
           // Essayer d'extraire les erreurs de validation
           const validationErrors = Object.values(apiError)
@@ -150,6 +183,11 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
             errorMessage = validationErrors
           }
         }
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object') {
+        // Essayer d'extraire un message d'erreur d'un objet
+        errorMessage = error.toString();
       }
       
       setError(errorMessage)
@@ -178,6 +216,15 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
       default:
         return role
     }
+  }
+
+  const resetPasswordFields = () => {
+    setFormData(prev => ({
+      ...prev,
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    }))
   }
 
   if (!user) return null
@@ -301,17 +348,47 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
                 <Lock className="h-5 w-5" />
                 Changer le mot de passe
               </h3>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-700 mb-3">
+                  <strong>Note :</strong> Pour changer votre mot de passe, vous devez fournir votre mot de passe actuel.
+                </p>
+                <p className="text-xs text-blue-600">
+                  Si vous avez oublié votre mot de passe, contactez un administrateur.
+                </p>
+              </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Mot de passe actuel</Label>
+                  <Label htmlFor="currentPassword">
+                    Mot de passe actuel
+                    {formData.newPassword && (
+                      <span className="text-red-500 ml-1">*</span>
+                    )}
+                  </Label>
                   <Input
                     id="currentPassword"
                     type="password"
                     value={formData.currentPassword}
-                    onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                    placeholder="Laissez vide si vous ne voulez pas changer"
+                    onChange={(e) => {
+                      setFormData({ ...formData, currentPassword: e.target.value })
+                      // Effacer l'erreur si l'utilisateur commence à corriger
+                      if (error && error.includes('current_password')) {
+                        setError("")
+                      }
+                    }}
+                    placeholder="Entrez votre mot de passe actuel"
+                    className={formData.newPassword && !formData.currentPassword ? "border-red-300" : ""}
                   />
+                  {formData.newPassword && !formData.currentPassword && (
+                    <p className="text-sm text-red-500">Le mot de passe actuel est requis pour modifier le mot de passe</p>
+                  )}
+                  {error && error.includes('current_password') && (
+                    <p className="text-sm text-red-500">
+                      <strong>Erreur :</strong> Le mot de passe actuel saisi est incorrect. 
+                      Vérifiez votre saisie ou contactez un administrateur si vous avez oublié votre mot de passe.
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -322,8 +399,12 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
                       type="password"
                       value={formData.newPassword}
                       onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                      placeholder="Nouveau mot de passe"
+                      placeholder="Nouveau mot de passe (min. 8 caractères)"
+                      className={formData.newPassword && formData.newPassword.length < 8 ? "border-red-300" : ""}
                     />
+                    {formData.newPassword && formData.newPassword.length < 8 && (
+                      <p className="text-sm text-red-500">Le mot de passe doit contenir au moins 8 caractères</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
@@ -333,18 +414,44 @@ export function ProfileManagement({ onUpdate }: ProfileManagementProps) {
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                       placeholder="Confirmer le mot de passe"
+                      className={formData.newPassword && formData.confirmPassword && formData.newPassword !== formData.confirmPassword ? "border-red-300" : ""}
                     />
+                    {formData.newPassword && formData.confirmPassword && formData.newPassword !== formData.confirmPassword && (
+                      <p className="text-sm text-red-500">Les mots de passe ne correspondent pas</p>
+                    )}
                   </div>
                 </div>
+                
+                {formData.newPassword && formData.currentPassword && formData.newPassword === formData.currentPassword && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Attention :</strong> Le nouveau mot de passe doit être différent de l'ancien.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full md:w-auto">
-              {loading ? "Mise à jour..." : "Mettre à jour le profil"}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button type="submit" disabled={loading} className="w-full sm:w-auto">
+                {loading ? "Mise à jour..." : "Mettre à jour le profil"}
+              </Button>
+              
+              {(formData.currentPassword || formData.newPassword || formData.confirmPassword) && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={resetPasswordFields}
+                  className="w-full sm:w-auto"
+                >
+                  Annuler la modification du mot de passe
+                </Button>
+              )}
+            </div>
           </form>
         </CardContent>
       </Card>
     </div>
   )
 }
+

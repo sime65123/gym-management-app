@@ -65,10 +65,19 @@ export function PaymentManagement() {
   const [isPaiementDirectOpen, setIsPaiementDirectOpen] = useState(false);
   const [isAbonnementDirectOpen, setIsAbonnementDirectOpen] = useState(false);
 
+  // Define the interface for the payment form data
+  interface PaiementFormData {
+    client_id: string;
+    montant: number;
+    mode_paiement: "ESPECE" | "CARTE" | "CHEQUE";
+    seance_id: string;
+    abonnement_id: string;
+  }
+
   // États pour les formulaires
-  const [paiementDirectData, setPaiementDirectData] = useState({
+  const [paiementDirectData, setPaiementDirectData] = useState<PaiementFormData>({
     client_id: "",
-    montant: "",
+    montant: 0,
     mode_paiement: "ESPECE",
     seance_id: "",
     abonnement_id: "",
@@ -247,12 +256,20 @@ export function PaymentManagement() {
                   </div>
 
                   <div>
-                    <Label htmlFor="montant">Montant (FCFA) *</Label>
+                    <Label htmlFor="montant">Montant</Label>
                     <Input
                       type="number"
                       value={paiementDirectData.montant}
-                      onChange={(e) => setPaiementDirectData({ ...paiementDirectData, montant: e.target.value })}
-                      placeholder="5000"
+                      onChange={(e) =>
+                        setPaiementDirectData({
+                          ...paiementDirectData,
+                          montant: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      id="montant"
+                      placeholder="Entrez le montant"
+                      className="w-full"
+                      required
                     />
                   </div>
 
@@ -431,7 +448,7 @@ export function PaymentManagement() {
                           </div>
                           <div className="text-sm text-gray-600 space-y-1">
                             <div>Email: {paiement.client.email}</div>
-                            <div>Montant: {paiement.montant.toLocaleString()} FCFA</div>
+                            <div>Montant: {paiement.montant.toLocaleString()}</div>
                             <div>Date: {new Date(paiement.date_paiement).toLocaleString("fr-FR")}</div>
                             {paiement.abonnement && (
                               <div>Abonnement: {paiement.abonnement.nom}</div>
@@ -484,7 +501,7 @@ export function PaymentManagement() {
                           </div>
                           <div className="text-sm text-gray-600 space-y-1">
                             <div>Email: {paiement.client.email}</div>
-                            <div>Montant: {paiement.montant.toLocaleString()} FCFA</div>
+                            <div>Montant: {paiement.montant.toLocaleString()} </div>
                             <div>Date: {new Date(paiement.date_paiement).toLocaleString("fr-FR")}</div>
                             <div>Mode: {paiement.mode_paiement}</div>
                             {paiement.abonnement && (

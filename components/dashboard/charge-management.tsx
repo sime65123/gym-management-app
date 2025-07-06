@@ -35,7 +35,14 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [selectedCharge, setSelectedCharge] = useState<Charge | null>(null)
-  const [formData, setFormData] = useState({
+  interface FormData {
+    titre: string;
+    montant: number | "";
+    date: string;
+    description: string;
+  }
+
+  const [formData, setFormData] = useState<FormData>({
     titre: "",
     montant: "",
     date: "",
@@ -73,26 +80,94 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
 
   const handleCreateCharge = async () => {
     try {
-      const data = {
-        ...formData,
-        montant: Number.parseFloat(formData.montant),
+      // Vérifier que tous les champs requis sont remplis
+      if (!formData.titre || formData.montant === "" || !formData.date) {
+        toast({
+          title: "Champs manquants",
+          description: "Veuillez remplir tous les champs obligatoires.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
       }
-      await apiClient.createCharge(data)
-      setIsCreateDialogOpen(false)
-      resetForm()
-      loadCharges()
+
+      // Préparer les données pour l'API
+      const data = {
+        titre: formData.titre.trim(),
+        montant: Number(formData.montant),
+        date: formData.date,
+        description: formData.description ? formData.description.trim() : "",
+      };
+      
+      console.log('Données formatées pour l\'API:', JSON.stringify(data, null, 2));
+      
+      console.log('Données envoyées à l\'API:', data);
+      
+      const response = await apiClient.createCharge(data);
+      console.log('Réponse de l\'API:', response);
+      
+      setIsCreateDialogOpen(false);
+      resetForm();
+      loadCharges();
+      
+      // Appeler onReload si fourni (pour rafraîchir le tableau de bord)
+      if (onReload) onReload();
+      
       toast({
         title: "Ajout réussi",
-        description: "La charge a été ajoutée.",
+        description: "La charge a été ajoutée avec succès.",
         duration: 5000,
       })
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Erreur lors de la création de la charge:', error);
+      
+      // Extraire le message d'erreur de différentes manières selon le format de l'erreur
+      let errorMessage = "Une erreur est survenue lors de l'ajout de la charge.";
+      
+      if (error.response) {
+        // Erreur avec une réponse HTTP
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 400 && data) {
+          // Erreurs de validation
+          if (typeof data === 'object') {
+            const errorMessages = Object.entries(data)
+              .map(([field, errors]) => {
+                if (Array.isArray(errors)) {
+                  return `${field}: ${errors.join(', ')}`;
+                }
+                return `${field}: ${errors}`;
+              })
+              .join('\n');
+            errorMessage = `Erreur de validation :\n${errorMessages}`;
+          } else if (typeof data === 'string') {
+            errorMessage = data;
+          }
+        } else if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à effectuer cette action. Veuillez vous reconnecter.";
+        } else if (status === 500) {
+          errorMessage = "Une erreur serveur est survenue. Veuillez réessayer plus tard.";
+        }
+      } else if (error.request) {
+        // La requête a été faite mais aucune réponse n'a été reçue
+        console.error('Aucune réponse du serveur:', error.request);
+        errorMessage = "Le serveur ne répond pas. Vérifiez votre connexion Internet et réessayez.";
+      } else if (error.message) {
+        // Une erreur s'est produite lors de la configuration de la requête
+        console.error('Erreur de configuration de la requête:', error.message);
+        errorMessage = `Erreur de configuration : ${error.message}`;
+      } else if (error.data) {
+        // Erreur personnalisée avec des données
+        errorMessage = error.data.detail || error.data.message || JSON.stringify(error.data);
+      }
+      
       toast({
         title: "Erreur",
-        description: "L'ajout a échoué.",
+        description: errorMessage,
         variant: "destructive",
-        duration: 5000,
-      })
+        duration: 10000, // Augmenter la durée pour permettre la lecture
+      });
     }
   }
 
@@ -169,7 +244,9 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="titre">Titre de la charge</Label>
+                    <Label htmlFor="titre">
+                      Titre de la charge <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="titre"
                       value={formData.titre}
@@ -178,22 +255,40 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="montant">Montant (FCFA)</Label>
+                    <Label htmlFor="montant">
+                      Montant (FCFA) <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="montant"
                       type="number"
+                      step="0.01"
+                      min="0"
                       value={formData.montant}
-                      onChange={(e) => setFormData({ ...formData, montant: e.target.value })}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Permettre la chaîne vide ou un nombre valide
+                        if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                          setFormData({ 
+                            ...formData, 
+                            montant: value === "" ? "" : Number(value) 
+                          });
+                        }
+                      }}
                       placeholder="50000"
+                      className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="date">Date</Label>
+                    <Label htmlFor="date">
+                      Date <span className="text-red-500">*</span>
+                    </Label>
                     <Input
                       id="date"
                       type="date"
                       value={formData.date}
                       onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      max={new Date().toISOString().split('T')[0]}
+                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -202,8 +297,12 @@ export function ChargeManagement({ onReload }: { onReload?: () => void }) {
                       id="description"
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      placeholder="Détails de la charge..."
+                      placeholder="Détails supplémentaires sur cette charge..."
+                      className="min-h-[100px]"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Champs marqués d'un <span className="text-red-500">*</span> sont obligatoires
+                    </p>
                   </div>
                 </div>
                 <DialogFooter>

@@ -16,17 +16,25 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.push("/")
-        return
-      }
-
-      if (allowedRoles && !allowedRoles.includes(user.role)) {
-        router.push("/unauthorized")
-        return
-      }
+    if (loading) return;
+    
+    console.log('ProtectedRoute - Vérification de l\'authentification et des rôles');
+    console.log('Utilisateur:', user);
+    console.log('Rôles autorisés:', allowedRoles);
+    
+    if (!user) {
+      console.log('Aucun utilisateur connecté - Redirection vers /');
+      router.push("/");
+      return;
     }
+
+    if (allowedRoles && !allowedRoles.includes(user.role)) {
+      console.log(`Rôle non autorisé: ${user.role} - Redirection vers /unauthorized`);
+      router.push("/unauthorized");
+      return;
+    }
+    
+    console.log('Accès autorisé pour le rôle:', user.role);
   }, [user, loading, allowedRoles, router])
 
   if (loading) {

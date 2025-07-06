@@ -51,7 +51,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={["ADMIN", "EMPLOYE", "CLIENT"]}>
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
         <header className="bg-white shadow-sm border-b sticky top-0 z-40">
