@@ -122,8 +122,8 @@ export function ReservationManagement() {
       const montantDejaPaye = parseFloat(reservation.montant_total_paye || '0') || 0
       const resteAPayer = montantTotal - montantDejaPaye
       
-      // Vérifier que le montant saisi ne dépasse pas le reste à payer
-      if (montantValue > resteAPayer) {
+      // Vérifier que le montant saisi ne dépasse pas le reste à payer uniquement pour les abonnements
+      if (reservation.type_reservation === 'ABONNEMENT' && montantValue > resteAPayer) {
         const errorMessage = `Impossible de traiter ce montant. Saisissez un montant correct pour l'abonnement.`;
         toast({
           title: "Montant invalide",
