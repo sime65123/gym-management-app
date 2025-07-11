@@ -392,7 +392,7 @@ export default function HomePage() {
                       <Input
                         id="register-telephone"
                         type="tel"
-                        placeholder="+225 XX XX XX XX"
+                        placeholder="+237 XX XX XX XX"
                         value={registerData.telephone}
                         onChange={(e) => setRegisterData({ ...registerData, telephone: e.target.value })}
                       />
@@ -472,7 +472,7 @@ export default function HomePage() {
                 Transformez Votre <span className="text-blue-400">Corps</span>
               </h2>
               <p className="text-xl md:text-2xl mb-8 text-gray-200">
-                Rejoignez la meilleure salle de sport de Côte d'Ivoire avec des équipements modernes et des coachs
+                Rejoignez la meilleure salle de sport de Yaounde avec des équipements modernes et des coachs
                 professionnels
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">

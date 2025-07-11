@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,24 +8,32 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import { apiClient } from "@/lib/api"
 
+interface PersonnelInfo {
+  id: number
+  nom: string
+  prenom: string
+  categorie: string
+}
+
+interface EmployeInfo {
+  id: number
+  nom: string
+  prenom: string
+  email: string
+  role?: string
+}
+
 interface PresenceRapport {
   id: number
-  personnel?: {
-    id: number
-    nom: string
-    prenom: string
-    categorie: string
-  }
-  employe?: {
-    id: number
-    nom: string
-    prenom: string
-    email: string
-    role?: string
-  }
+  personnel?: PersonnelInfo
+  employe?: EmployeInfo
   statut: "PRESENT" | "ABSENT"
   heure_arrivee: string
   date_jour: string
+}
+
+type PersonnelComplet = (PersonnelInfo | EmployeInfo) & {
+  categorie: string
 }
 
 interface ApiResponse {
@@ -34,8 +42,33 @@ interface ApiResponse {
 }
 
 export function RapportPresence() {
+  const getPersonnelInfo = useCallback((presence: PresenceRapport): PersonnelComplet => {
+    if (presence.employe) {
+      return {
+        ...presence.employe,
+        categorie: presence.employe.role || 'EMPLOYE'
+      } as PersonnelComplet;
+    } else if (presence.personnel) {
+      return {
+        ...presence.personnel,
+        email: '' // Ajout d'un email vide pour la compatibilité avec le type
+      } as PersonnelComplet;
+    }
+    return { 
+      id: 0, 
+      nom: 'Inconnu', 
+      prenom: '', 
+      email: '',
+      categorie: 'INCONNU' 
+    };
+  }, []);
   const [presences, setPresences] = useState<PresenceRapport[]>([])
+  const [anciensRapports, setAnciensRapports] = useState<PresenceRapport[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingAnciens, setLoadingAnciens] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [showAnciensRapports, setShowAnciensRapports] = useState(false)
+  const [dateRecherche, setDateRecherche] = useState('')
 
   useEffect(() => {
     loadRapportJournalier()
@@ -43,6 +76,7 @@ export function RapportPresence() {
 
   const loadRapportJournalier = async () => {
     try {
+      setLoading(true)
       const response = await apiClient.getRapportJournalier() as ApiResponse | PresenceRapport[]
       if (Array.isArray(response)) {
         setPresences(response)
@@ -59,7 +93,7 @@ export function RapportPresence() {
   }
 
   const getStatutBadge = (statut: string) => {
-    switch (statut) {
+    switch (statut?.toUpperCase()) {
       case "PRESENT":
         return (
           <Badge className="bg-green-100 text-green-800">
@@ -80,38 +114,64 @@ export function RapportPresence() {
   }
 
   const getCategorieLabel = (categorie: string) => {
-    switch (categorie) {
+    switch (categorie?.toUpperCase()) {
       case "COACH":
         return "Coach"
-      case "MENAGE":
-        return "Ménage"
-      case "AIDE_SOIGNANT":
-        return "Aide-soignant"
+      case "RECEPTIONNISTE":
+        return "Réceptionniste"
+      case "ENTRAINEUR":
+        return "Entraîneur"
       case "ADMIN":
         return "Administrateur"
       case "EMPLOYE":
         return "Employé"
-      case "AUTRE":
-        return "Autre"
       default:
-        return categorie
+        return categorie || "Non défini"
+    }
+  }
+
+  const rechercherAnciensRapports = async (date: string) => {
+    if (!date) return
+    
+    try {
+      setLoadingAnciens(true)
+      // Ici, vous devrez implémenter l'appel API pour récupérer les rapports par date
+      // Par exemple : const response = await apiClient.getRapportParDate(date)
+      // setAnciensRapports(Array.isArray(response) ? response : response?.results || [])
+      
+      // Simulation de chargement (à remplacer par l'appel API réel)
+      setTimeout(() => {
+        setAnciensRapports([]) // Remplacer par les données réelles
+        setLoadingAnciens(false)
+      }, 500)
+    } catch (error) {
+      console.error('Erreur lors de la récupération des anciens rapports:', error)
+      setLoadingAnciens(false)
+    }
+  }
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const date = e.target.value
+    setDateRecherche(date)
+    if (date) {
+      rechercherAnciensRapports(date)
     }
   }
 
   const getCategorieBadgeColor = (categorie: string) => {
-    switch (categorie) {
+    const cat = categorie?.toUpperCase() || '';
+    switch (cat) {
       case "COACH":
         return "bg-blue-100 text-blue-800"
       case "MENAGE":
-        return "bg-green-100 text-green-800"
-      case "AIDE_SOIGNANT":
+        return "bg-yellow-100 text-yellow-800"
+      case "ENTRAINEUR":
         return "bg-purple-100 text-purple-800"
       case "ADMIN":
         return "bg-red-100 text-red-800"
       case "EMPLOYE":
-        return "bg-orange-100 text-orange-800"
-      case "AUTRE":
-        return "bg-gray-100 text-gray-800"
+      case "RÉCEPTIONNISTE":
+        return "bg-green-100 text-green-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
@@ -127,6 +187,111 @@ export function RapportPresence() {
   }
 
   const stats = getRapportStats()
+
+  const handleDownload = async () => {
+    try {
+      setIsDownloading(true)
+      
+      // Créer le contenu HTML pour le PDF
+      const date = new Date().toLocaleDateString('fr-FR')
+      const title = 'Rapport de Présence'
+      
+      // Créer le tableau HTML
+      let tableRows = ''
+      presences.forEach(presence => {
+        const personnel = getPersonnelInfo(presence)
+        tableRows += `
+          <tr>
+            <td>${personnel.prenom} ${personnel.nom}</td>
+            <td>${getCategorieLabel(personnel.categorie)}</td>
+            <td>${presence.statut === 'PRESENT' ? 'Présent' : 'Absent'}</td>
+            <td>${presence.heure_arrivee || '-'}</td>
+            <td>${new Date(presence.date_jour).toLocaleDateString('fr-FR')}</td>
+          </tr>
+        `
+      })
+      
+      // Créer le contenu HTML complet
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${title}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { color: #2c3e50; text-align: center; }
+            .date { text-align: right; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #3498db; color: white; text-align: left; padding: 10px; }
+            td { padding: 8px; border-bottom: 1px solid #ddd; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+            .stats { margin-top: 30px; }
+            .stats h2 { color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+            .stat-item { margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          <div class="date">Date: ${date}</div>
+          
+          <table>
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Catégorie</th>
+                <th>Statut</th>
+                <th>Heure</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+          
+          <div class="stats">
+            <h2>Statistiques</h2>
+            <div class="stat-item"><strong>Total:</strong> ${stats.total}</div>
+            <div class="stat-item"><strong>Présents:</strong> ${stats.present}</div>
+            <div class="stat-item"><strong>Absents:</strong> ${stats.absent}</div>
+            <div class="stat-item"><strong>Taux de présence:</strong> ${stats.tauxPresence}%</div>
+          </div>
+        </body>
+        </html>
+      `
+      
+      // Ouvrir une nouvelle fenêtre avec le contenu HTML
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.open()
+        printWindow.document.write(htmlContent)
+        printWindow.document.close()
+        
+        // Donner le temps au contenu de se charger avant d'imprimer
+        printWindow.onload = () => {
+          printWindow.print()
+        }
+      } else {
+        // Fallback si la fenêtre d'impression ne s'ouvre pas
+        const blob = new Blob([htmlContent], { type: 'text/html' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `rapport_presence_${date.replace(/\//g, '-')}.html`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de la génération du rapport:', error)
+      alert('Une erreur est survenue lors de la génération du rapport')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
 
   if (loading) {
     return <div className="flex justify-center p-8">Chargement...</div>
@@ -176,21 +341,120 @@ export function RapportPresence() {
           </CardContent>
         </Card>
       </div>
-
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Rapport Journalier des Présences</CardTitle>
-              <CardDescription>Liste des présences du personnel pour aujourd'hui</CardDescription>
+              <CardTitle>Rapport de présence</CardTitle>
+              <CardDescription>Gérez les présences du personnel</CardDescription>
             </div>
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Exporter
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAnciensRapports(!showAnciensRapports)}
+              >
+                {showAnciensRapports ? 'Masquer' : 'Afficher'} les anciens rapports
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleDownload}
+                disabled={isDownloading || presences.length === 0}
+              >
+                {isDownloading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Génération...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Exporter PDF
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
+          {showAnciensRapports && (
+            <div className="mb-8 p-4 border rounded-lg">
+              <h3 className="text-lg font-semibold mb-4">Anciens rapports</h3>
+              <div className="flex items-center gap-4 mb-4">
+                <input
+                  type="date"
+                  value={dateRecherche}
+                  onChange={handleDateChange}
+                  className="p-2 border rounded"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+              </div>
+              
+              {loadingAnciens ? (
+                <div className="text-center py-4">Chargement des rapports...</div>
+              ) : anciensRapports.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nom</TableHead>
+                      <TableHead>Rôle</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>Heure d'arrivée</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {anciensRapports.map((presence) => {
+                      const personnelInfo = getPersonnelInfo(presence);
+                      const categorie = personnelInfo.categorie || "INCONNU";
+
+                      return (
+                        <TableRow key={presence.id}>
+                          <TableCell className="font-medium">
+                            {personnelInfo.prenom} {personnelInfo.nom}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={getCategorieBadgeColor(categorie)}>
+                              {getCategorieLabel(categorie)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center">
+                              {presence.statut === "PRESENT" ? (
+                                <>
+                                  <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                                  <span>Présent</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-4 w-4 text-red-500 mr-1" />
+                                  <span>Absent</span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {presence.heure_arrivee || '-'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              ) : dateRecherche ? (
+                <div className="text-center py-4 text-gray-500">
+                  Aucun rapport trouvé pour cette date
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  Sélectionnez une date pour afficher les rapports
+                </div>
+              )}
+            </div>
+          )}
+          
+          <h3 className="text-lg font-semibold mb-4">Rapport du jour</h3>
           <Table>
             <TableHeader>
               <TableRow>
@@ -210,15 +474,13 @@ export function RapportPresence() {
                 </TableRow>
               ) : (
                 presences.map((presence) => {
-                  // Déterminer si c'est un employé ou un personnel
-                  const isEmployee = presence.employe && !presence.personnel
-                  const personnel = isEmployee ? presence.employe : presence.personnel
-                  const categorie = isEmployee ? (personnel?.role || "EMPLOYE") : (personnel?.categorie || "")
+                  const personnelInfo = getPersonnelInfo(presence);
+                  const categorie = personnelInfo.categorie || "INCONNU";
                   
                   return (
                     <TableRow key={presence.id}>
                       <TableCell className="font-medium">
-                        {personnel?.prenom} {personnel?.nom}
+                        {personnelInfo.prenom} {personnelInfo.nom}
                       </TableCell>
                       <TableCell>
                         <Badge className={getCategorieBadgeColor(categorie)}>

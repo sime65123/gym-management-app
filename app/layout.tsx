@@ -16,7 +16,7 @@ const inter = Inter({
 const siteConfig = {
   name: "GYM ZONE",
   title: "GYM ZONE - Votre Salle de Sport Moderne",
-  description: "Rejoignez GYM ZONE, la meilleure salle de sport de Côte d'Ivoire avec des équipements modernes et des coachs professionnels.",
+  description: "Rejoignez GYM ZONE, la meilleure salle de sport de Yaounde avec des équipements modernes et des coachs professionnels.",
   url: "https://gymzone.ci",
   logo: "/lg1.jpg",
   ogImage: "/og-image.jpg",
@@ -30,12 +30,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'),
   icons: {
     icon: [
-      { url: '/favicon.ico' },
+      { url: '/favicon.ico', sizes: 'any' },
       { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-touch-icon.png' },
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
     other: [
       {
@@ -81,16 +81,7 @@ export const metadata: Metadata = {
     images: [siteConfig.ogImage],
     creator: "@gymzone",
   },
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-    ],
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-  },
+
   manifest: "/site.webmanifest",
 }
 
