@@ -292,7 +292,7 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
-                <DialogDescription>Ajoutez un nouveau membre à votre équipe ou un client</DialogDescription>
+                <DialogDescription>Ajoutez un nouveau membre à votre équipe ou un nouveau client</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">

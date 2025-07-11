@@ -1,9 +1,0 @@
-[build]
-  command = "npm run build"
-  publish = "out"
-
-[[redirects]]
-  from = "/api/*"
-  to = "https://33fd2f83-888e-4b9d-a899-f82716e74537-00-2i0tlxi804sf6.spock.replit.dev/api/:splat"
-  status = 200
-  force = true
