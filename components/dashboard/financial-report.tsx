@@ -318,7 +318,7 @@ function FinancialReport() {
           <CardContent>
             <div className="text-3xl font-extrabold text-red-600">
               {Number(totalCharges).toLocaleString()} FCFA
-            </div>
+      </div>
             <p className="text-xs text-red-700 mt-2">
               Total des charges enregistrées ce mois-ci
             </p>
@@ -328,31 +328,31 @@ function FinancialReport() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base font-semibold text-purple-700">Personnel le plus assidu</CardTitle>
             <Users className="h-6 w-6 text-purple-500" />
-          </CardHeader>
-          <CardContent>
+              </CardHeader>
+              <CardContent>
             <div className="text-2xl font-extrabold text-purple-600">
               {personnelAssidu}
-            </div>
+                      </div>
             <p className="text-xs text-purple-700 mt-2">
               Présence la plus régulière ce mois-ci
             </p>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
         <Card className="shadow-lg border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white rounded-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base font-semibold text-blue-700">Abonnement le plus demandé</CardTitle>
             <DollarSign className="h-6 w-6 text-blue-500" />
-          </CardHeader>
-          <CardContent>
+              </CardHeader>
+              <CardContent>
             <div className="text-2xl font-extrabold text-blue-600">
               {abonnementPopulaire}
-            </div>
+                    </div>
             <p className="text-xs text-blue-700 mt-2">
               Abonnement le plus souscrit ce mois-ci
             </p>
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+          </div>
 
       <Tabs 
         defaultValue="table" 
@@ -450,7 +450,7 @@ function FinancialReport() {
                     )}
                   </TableBody>
                 </Table>
-              </div>
+                </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -540,7 +540,7 @@ function FinancialReport() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-          
+
           {/* Graphique en barres pour le rendu mensuel */}
           <Card className="shadow-lg border-2 border-purple-100 bg-gradient-to-br from-purple-50 to-white">
             <CardHeader>

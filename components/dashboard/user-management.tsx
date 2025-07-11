@@ -127,14 +127,14 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
   }
 
   const handleDeleteUser = async (id: number) => {
-    try {
-      await apiClient.deleteUser(id)
+      try {
+        await apiClient.deleteUser(id)
       await loadUsers()
       toast({
         title: "Succès",
         description: "L'utilisateur a été supprimé avec succès.",
       })
-    } catch (error) {
+      } catch (error) {
       console.error("Error deleting user:", error)
       toast({
         title: "Erreur",
@@ -282,88 +282,88 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
             <Button variant="outline" onClick={loadUsers} title="Actualiser la liste">
               <RotateCcw className="h-4 w-4" />
             </Button>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => resetForm()}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nouvel utilisateur
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
-                  <DialogDescription>Ajoutez un nouveau membre à votre équipe ou un client</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="prenom">Prénom</Label>
-                      <Input
-                        id="prenom"
-                        value={formData.prenom}
-                        onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="nom">Nom</Label>
-                      <Input
-                        id="nom"
-                        value={formData.nom}
-                        onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
-                      />
-                    </div>
-                  </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => resetForm()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nouvel utilisateur
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Créer un nouvel utilisateur</DialogTitle>
+                <DialogDescription>Ajoutez un nouveau membre à votre équipe ou un client</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="prenom">Prénom</Label>
                     <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      id="prenom"
+                      value={formData.prenom}
+                      onChange={(e) => setFormData({ ...formData, prenom: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="telephone">Téléphone</Label>
+                    <Label htmlFor="nom">Nom</Label>
                     <Input
-                      id="telephone"
-                      value={formData.telephone}
-                      onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role">Rôle</Label>
-                    <Select
-                      value={formData.role}
-                      onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sélectionnez un rôle" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CLIENT">Client</SelectItem>
-                        <SelectItem value="EMPLOYE">Employé</SelectItem>
-                        <SelectItem value="ADMIN">Administrateur</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Mot de passe</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      id="nom"
+                      value={formData.nom}
+                      onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
                     />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Annuler
-                  </Button>
-                  <Button onClick={handleCreateUser}>Créer</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="telephone">Téléphone</Label>
+                  <Input
+                    id="telephone"
+                    value={formData.telephone}
+                    onChange={(e) => setFormData({ ...formData, telephone: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="role">Rôle</Label>
+                  <Select
+                    value={formData.role}
+                      onValueChange={(value) => setFormData({ ...formData, role: value as UserRole })}
+                  >
+                    <SelectTrigger>
+                        <SelectValue placeholder="Sélectionnez un rôle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CLIENT">Client</SelectItem>
+                      <SelectItem value="EMPLOYE">Employé</SelectItem>
+                      <SelectItem value="ADMIN">Administrateur</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Mot de passe</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleCreateUser}>Créer</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           </div>
         </div>
       </CardHeader>
@@ -396,29 +396,29 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
 
         {/* Tableau des utilisateurs */}
         <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
+        <Table>
+          <TableHeader>
+            <TableRow>
                 <TableHead>Nom</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Téléphone</TableHead>
-                <TableHead>Rôle</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Téléphone</TableHead>
+              <TableHead>Rôle</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
               {filteredUsers.length > 0 ? (
                 filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
+              <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.prenom} {user.nom}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.telephone || "-"}</TableCell>
-                    <TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>{user.telephone || "-"}</TableCell>
+                <TableCell>
                       <Badge className={getRoleBadgeColor(user.role)}>
                         {user.role}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
+                </TableCell>
+                <TableCell>
                       <div className="flex items-center justify-start gap-0 w-full">
                         {/* Groupe d'actions spécifiques aux clients */}
                         {user.role === 'CLIENT' && (
@@ -432,8 +432,8 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
                               title="Voir les réservations"
                             >
                               <Calendar className="h-4 w-4" />
-                            </Button>
-                          </div>
+                    </Button>
+                  </div>
                         )}
                         
                         {/* Groupe d'actions de suppression - Uniquement pour les rôles ADMIN et EMPLOYE */}
@@ -459,11 +459,11 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
                 <TableRow>
                   <TableCell colSpan={5} className="h-24 text-center">
                     Aucun utilisateur trouvé
-                  </TableCell>
-                </TableRow>
+                </TableCell>
+              </TableRow>
               )}
-            </TableBody>
-          </Table>
+          </TableBody>
+        </Table>
         </div>
 
         {/* Dialogue d'édition */}

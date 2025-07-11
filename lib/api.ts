@@ -217,8 +217,8 @@ class ApiClient {
     
     if (!token) {
       console.warn('Aucun token d\'accès trouvé dans le localStorage');
-      return {
-        "Content-Type": "application/json",
+    return {
+      "Content-Type": "application/json",
       };
     }
     
@@ -333,12 +333,12 @@ class ApiClient {
       console.log('URL de connexion:', loginUrl);
       
       const response = await fetch(loginUrl, {
-        method: "POST",
+      method: "POST",
         headers: { 
           "Content-Type": "application/json",
           'Accept': 'application/json'
         },
-        body: JSON.stringify(credentials),
+      body: JSON.stringify(credentials),
         credentials: 'include' // Important pour les cookies de session
       });
       
@@ -894,8 +894,8 @@ class ApiClient {
       
       console.log('[API] Cleaned data before sending:', JSON.stringify(cleanData, null, 2));
       
-      const response = await fetch(`${API_BASE_URL}/seances/${id}/`, {
-        method: "PATCH",
+    const response = await fetch(`${API_BASE_URL}/seances/${id}/`, {
+      method: "PATCH",
         headers: {
           'Content-Type': 'application/json',
           ...this.getAuthHeaders()
@@ -1200,9 +1200,9 @@ class ApiClient {
 
   async deleteReservation(id: number): Promise<boolean> {
     try {
-      const response = await fetch(`${API_BASE_URL}/reservations/${id}/`, {
+    const response = await fetch(`${API_BASE_URL}/reservations/${id}/`, {
         method: 'DELETE',
-        headers: this.getAuthHeaders(),
+      headers: this.getAuthHeaders(),
       });
       
       if (response.status === 204) {
@@ -1227,7 +1227,7 @@ class ApiClient {
   async getPaiements() {
     try {
       const response = await fetch(`${API_BASE_URL}/paiements/`, {
-        headers: this.getAuthHeaders(),
+      headers: this.getAuthHeaders(),
       });
       return await this.handleResponse<Paiement[]>(response);
     } catch (error) {
@@ -1241,7 +1241,7 @@ class ApiClient {
     try {
       const response = await fetch(`${API_BASE_URL}/paiements/${paiementId}/valider/`, {
         method: 'POST',
-        headers: this.getAuthHeaders(),
+      headers: this.getAuthHeaders(),
       });
       return await this.handleResponse<Paiement>(response);
     } catch (error) {
@@ -1414,7 +1414,7 @@ class ApiClient {
   }> {
     try {
       console.log('[API] Tentative de récupération du rapport financier...');
-      const response = await fetch(`${API_BASE_URL}/financial-report/`, {
+    const response = await fetch(`${API_BASE_URL}/financial-report/`, {
         headers: this.getAuthHeaders(),
       })
       

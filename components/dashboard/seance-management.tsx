@@ -476,7 +476,7 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col space-y-4 md:space-y-0 md:flex-row md:items-center md:justify-between">
-        <div>
+          <div>
           <h2 className="text-2xl font-bold">Liste des Séances</h2>
           <p className="text-sm text-muted-foreground">
             {isAdmin 
@@ -506,30 +506,30 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
             <RotateCcw className="h-4 w-4" />
           </Button>
           {isEmployee && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
                 <Button className="ml-2">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nouvelle séance
-                </Button>
-              </DialogTrigger>
+                <Plus className="h-4 w-4 mr-2" />
+                Nouvelle séance
+              </Button>
+            </DialogTrigger>
               <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Créer une nouvelle séance</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
+              <DialogHeader>
+                <DialogTitle>Créer une nouvelle séance</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="client_prenom" className="text-right">
                       Prénom du client
                     </Label>
-                    <Input
+                  <Input
                       id="client_prenom"
                       value={newSeance.client_prenom}
                       onChange={(e) => setNewSeance({...newSeance, client_prenom: e.target.value})}
                       className="col-span-3"
                       required
-                    />
-                  </div>
+                  />
+                </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="client_nom" className="text-right">
                       Nom du client
@@ -540,26 +540,26 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                       onChange={(e) => setNewSeance({...newSeance, client_nom: e.target.value})}
                       className="col-span-3"
                       required
-                    />
-                  </div>
+                  />
+                </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="date_jour" className="text-right">
                       Date
                     </Label>
-                    <Input
+                  <Input
                       id="date_jour"
                       type="date"
                       value={newSeance.date_jour}
                       onChange={(e) => setNewSeance({...newSeance, date_jour: e.target.value})}
                       className="col-span-3"
                       required
-                    />
-                  </div>
+                  />
+                </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="nombre_heures" className="text-right">
                       Durée (heures)
                     </Label>
-                    <Input
+                  <Input
                       id="nombre_heures"
                       type="number"
                       min="1"
@@ -567,15 +567,15 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                       onChange={(e) => setNewSeance({...newSeance, nombre_heures: Number(e.target.value)})}
                       className="col-span-3"
                       required
-                    />
-                  </div>
+                  />
+                </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="montant_paye" className="text-right">
                       Montant payé (FCFA)
                     </Label>
-                    <Input
+                  <Input
                       id="montant_paye"
-                      type="number"
+                    type="number"
                       min="0"
                       value={newSeance.montant_paye}
                       onChange={(e) => setNewSeance({...newSeance, montant_paye: e.target.value})}
@@ -606,9 +606,9 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                   </div>
                 </div>
                 <div className="flex justify-end space-x-2">
-                  <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                    Annuler
-                  </Button>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Annuler
+                </Button>
                   <Button onClick={handleCreateSeance} disabled={!newSeance.client_nom || !newSeance.client_prenom || !newSeance.date_jour || !newSeance.montant_paye}>
                     Créer la séance
                   </Button>
@@ -729,27 +729,27 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                     Modifier la séance
                   </Button>
                 </div>
-              </DialogContent>
-            </Dialog>
+            </DialogContent>
+          </Dialog>
           )}
         </div>
       </div>
 
       <Card>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
+        <Table>
+          <TableHeader>
+            <TableRow>
                 <TableHead>Client</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Durée</TableHead>
                 <TableHead>Montant</TableHead>
-                <TableHead>Coach</TableHead>
+              <TableHead>Coach</TableHead>
                 {isAdmin && <TableHead>Ticket</TableHead>}
                 <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
               {filteredSeances.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
@@ -760,31 +760,31 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                 </TableRow>
               ) : (
                 filteredSeances.map((seance) => (
-                  <TableRow key={seance.id}>
+              <TableRow key={seance.id}>
                     <TableCell className="font-medium">
                       <div className="flex items-center space-x-2">
                         <User className="h-4 w-4 text-gray-500" />
                         <span>{seance.client_prenom} {seance.client_nom}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
+                  </div>
+                </TableCell>
+                <TableCell>
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4 text-gray-500" />
                         <span>{formatDate(seance.date_jour)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
+                  </div>
+                </TableCell>
+                <TableCell>
                       <div className="flex items-center space-x-2">
                         <Clock className="h-4 w-4 text-gray-500" />
                         <span>{(seance.nombre_heures || 0)} heure{(seance.nombre_heures || 0) > 1 ? 's' : ''}</span>
-                      </div>
-                    </TableCell>
+                  </div>
+                </TableCell>
                     <TableCell>{Number(seance.montant_paye || 0).toLocaleString()} FCFA</TableCell>
-                    <TableCell>
+                <TableCell>
                       {seance.coach 
                         ? `${seance.coach.prenom || ''} ${seance.coach.nom || ''}`.trim() || 'Coach sans nom'
                         : 'Non spécifié'}
-                    </TableCell>
+                </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
                         {isEmployee && (
@@ -795,7 +795,7 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                             title="Modifier la séance"
                           >
                             <Calendar className="h-4 w-4" />
-                          </Button>
+                    </Button>
                         )}
                         <Button
                           variant="ghost"
@@ -804,16 +804,16 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                           title="Télécharger le ticket"
                         >
                           <Download className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
                 ))
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
     </div>
   );
 }

@@ -303,7 +303,7 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
       });
       
       setActiveTab("tickets");
-    } catch (error) {
+      } catch (error) {
       console.error("Erreur lors de la réservation d'abonnement:", error);
       toast({
         title: "Erreur",
@@ -397,11 +397,34 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
+        {/* Bannière d'accueil client */}
+        <Card className="bg-gradient-to-r from-green-500 to-blue-600 text-white mb-8">
+          <CardHeader>
+            <CardTitle className="text-2xl">
+              Bonjour, {user.prenom} {user.nom}!
+            </CardTitle>
+            <CardDescription className="text-green-100">
+              Tableau de bord client – Gérez vos abonnements, séances et tickets
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-100">Statut du compte</p>
+                <p className="text-2xl font-bold">✅ Actif</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-green-100">Rôle</p>
+                <p className="text-xl font-semibold">Client</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         {/* En-tête */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Tableau de bord client</h1>
           <p className="text-gray-600 mt-2">Gérez vos réservations et accédez à vos tickets</p>
-        </div>
+          </div>
         
         {/* Navigation par onglets */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -414,8 +437,8 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
               <Ticket className="mr-2 h-4 w-4" />
               Mes tickets
             </TabsTrigger>
-          </TabsList>
-          
+        </TabsList>
+
           {/* Contenu de l'onglet Accueil */}
           <TabsContent value="accueil" className="space-y-8">
             {/* Section des panneaux de réservation */}
@@ -426,12 +449,12 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-full bg-blue-500 text-white">
                       <ShoppingCart className="h-5 w-5" />
-                    </div>
+                        </div>
             <div>
                       <CardTitle className="text-xl">Réservation d'abonnement</CardTitle>
                       <CardDescription>Choisissez votre formule d'abonnement</CardDescription>
-                    </div>
-                </div>
+                        </div>
+                      </div>
                 </CardHeader>
                 <CardContent className="p-6">
                   {isLoadingAbonnements ? (
@@ -462,14 +485,14 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                             </div>
                             <div className="text-right">
                               <div className="text-2xl font-bold text-blue-600">
-                                {abonnement.prix.toLocaleString()} FCFA
-                              </div>
+                            {abonnement.prix.toLocaleString()} FCFA
+                          </div>
                               <div className="text-sm text-gray-500">
                                 {abonnement.duree_jours} jours
                               </div>
                             </div>
                         </div>
-                        <Button 
+                        <Button
                             className="w-full bg-blue-600 hover:bg-blue-700"
                             onClick={() => handleAbonnementReservation(abonnement)}
                           disabled={isProcessing}
@@ -536,19 +559,19 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                       Réserver une séance
                     </Button>
               </div>
-                </CardContent>
-              </Card>
+            </CardContent>
+          </Card>
             </div>
-          </TabsContent>
-          
+        </TabsContent>
+
           {/* Contenu de l'onglet Tickets */}
           <TabsContent value="tickets" className="space-y-6">
-            <Card>
-              <CardHeader>
+          <Card>
+            <CardHeader>
                 <CardTitle>Mes tickets</CardTitle>
                 <CardDescription>Consultez et téléchargez vos tickets de réservation</CardDescription>
-              </CardHeader>
-              <CardContent>
+            </CardHeader>
+            <CardContent>
                 {reservations.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <Ticket className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -562,8 +585,8 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {reservations.map((reservation) => (
+              <div className="space-y-4">
+                {reservations.map((reservation) => (
                       <div key={reservation.id} className="border rounded-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-3">
@@ -641,17 +664,17 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                                 disabled={isProcessing}
                               >
                                 <Trash2 className="h-4 w-4" />
-                              </Button>
+                            </Button>
                             </ConfirmDeleteButton>
                           )}
                         </div>
                       </div>
-                    ))}
+                ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+            </CardContent>
+          </Card>
+        </TabsContent>
         </Tabs>
       </div>
 
@@ -670,7 +693,7 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
               </Button>
             </div>
             
-            <div className="space-y-4">
+              <div className="space-y-4">
               <div className="p-4 bg-green-50 rounded-lg">
                 <h4 className="font-medium text-green-900">Séance d'entraînement</h4>
                 <p className="text-sm text-green-700 mb-2">Réservez une séance personnalisée selon vos besoins</p>
@@ -683,15 +706,15 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                     <User className="h-4 w-4" />
                     Coach disponible selon disponibilité
                   </div>
-                  <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
                     Prix: À définir par l'employé lors de la validation
                   </div>
-                </div>
+                          </div>
                 <div className="mt-2 text-lg font-bold text-green-900">
                   Prix à définir
-                </div>
-              </div>
+                          </div>
+                        </div>
               
               <div className="space-y-3">
                 <div>
@@ -723,8 +746,8 @@ export function ClientDashboard({ user }: { user: any }): JSX.Element {
                     placeholder="Ex: Musculation, Cardio, Yoga, etc. Préférences d'horaires..."
                     rows={3}
                   />
-                </div>
-              </div>
+                        </div>
+                      </div>
               
               <div className="flex gap-3 pt-4">
                 <Button

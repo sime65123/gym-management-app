@@ -204,11 +204,11 @@ export function InvoiceManagement() {
       } else {
         // Fallback si la fenêtre ne s'ouvre pas (bloqueur de popup)
         const link = document.createElement('a')
-        link.href = facture.fichier_pdf_url
-        link.download = `facture-${facture.uuid}.pdf`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
+      link.href = facture.fichier_pdf_url
+      link.download = `facture-${facture.uuid}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
       }
     } catch (error) {
       console.error("Erreur lors du téléchargement du PDF:", error)
