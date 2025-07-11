@@ -1,4 +1,5 @@
-export const API_BASE_URL = "http://127.0.0.1:8000/api"
+ /*export const API_BASE_URL = "http://127.0.0.1:8000/api" */
+export const API_BASE_URL = "https://33fd2f83-888e-4b9d-a899-f82716e74537-00-2i0tlxi804sf6.spock.replit.dev/api"
 
 // Déclaration de l'interface pour étendre Error avec des propriétés personnalisées
 declare global {
