@@ -30,6 +30,21 @@ interface PersonnelInfo {
   categorie: string
 }
 
+export interface PresenceRapport {
+  id: number
+  personnel?: PersonnelInfo
+  employe?: {
+    id: number
+    nom: string
+    prenom: string
+    email: string
+    role?: string
+  }
+  statut: "PRESENT" | "ABSENT"
+  heure_arrivee: string
+  date_jour: string
+}
+
 export interface Abonnement {
   id: number
   nom: string
@@ -1516,12 +1531,22 @@ class ApiClient {
     return { success: true }
   }
 
-  // Rapport journalier
+  // Rapport journalier - Utilise l'endpoint /presences/ avec le paramètre date_jour
   async getRapportJournalier() {
-    const response = await fetch(`${API_BASE_URL}/presences/rapport_journalier/`, {
+    const today = new Date().toISOString().split('T')[0];
+    const response = await fetch(`${API_BASE_URL}/presences/?date_jour=${today}`, {
       headers: this.getAuthHeaders(),
-    })
-    return this.handleResponse(response)
+    });
+    return this.handleResponse<Array<PresenceRapport>>(response);
+  }
+
+  // Récupère les présences pour une date spécifique
+  async getRapportParDate(date: string) {
+    const response = await fetch(`${API_BASE_URL}/presences/?date_jour=${date}`, {
+      headers: this.getAuthHeaders(),
+    });
+    const data = await this.handleResponse<Array<PresenceRapport>>(response);
+    return data;
   }
 
   async getClients(): Promise<User[]> {

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Calendar, CheckCircle, XCircle, Clock, Download } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { toast } from "sonner"
 
 interface PersonnelInfo {
   id: number
@@ -135,17 +136,19 @@ export function RapportPresence() {
     
     try {
       setLoadingAnciens(true)
-      // Ici, vous devrez implémenter l'appel API pour récupérer les rapports par date
-      // Par exemple : const response = await apiClient.getRapportParDate(date)
-      // setAnciensRapports(Array.isArray(response) ? response : response?.results || [])
+      // Appel à l'API pour récupérer les rapports de la date sélectionnée
+      const response = await apiClient.getRapportParDate(date)
       
-      // Simulation de chargement (à remplacer par l'appel API réel)
-      setTimeout(() => {
-        setAnciensRapports([]) // Remplacer par les données réelles
-        setLoadingAnciens(false)
-      }, 500)
+      // Vérifier si la réponse est un tableau ou contient une propriété results
+      const rapports = Array.isArray(response) ? response : (Array.isArray((response as any)?.results) ? (response as any).results : [])
+      
+      // Mettre à jour l'état avec les données reçues
+      setAnciensRapports(rapports)
     } catch (error) {
       console.error('Erreur lors de la récupération des anciens rapports:', error)
+      // Afficher un message d'erreur à l'utilisateur
+      toast.error('Erreur lors de la récupération des rapports de présence')
+    } finally {
       setLoadingAnciens(false)
     }
   }
