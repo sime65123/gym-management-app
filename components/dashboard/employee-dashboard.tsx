@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ResponsiveTabs } from "@/components/ui/responsive-tabs"
 import { Users, Calendar, CheckCircle, Clock } from "lucide-react"
 import { apiClient, type User } from "@/lib/api"
 import { SeanceManagement } from "./seance-management"
@@ -13,11 +14,49 @@ import { ChargeManagement } from "./charge-management"
 import { PaymentManagement } from "./payment-management"
 import { AbonnementClientManagement } from "./abonnement-client-management"
 
+interface ApiResponse<T> {
+  results?: T[];
+  count?: number;
+  next?: string | null;
+  previous?: string | null;
+}
+
+interface Reservation {
+  id: number;
+  statut: string;
+  montant: number | string;
+  created_at?: string;
+  [key: string]: any;
+}
+
+interface Seance {
+  id: number;
+  [key: string]: any;
+}
+
+interface Presence {
+  id: number;
+  date_jour?: string;
+  date?: string;
+  employe?: { id: number; nom: string; prenom: string } | string;
+  employe_id?: number;
+  statut: string;
+  [key: string]: any;
+}
+
+interface Paiement {
+  id: number;
+  [key: string]: any;
+}
+
 interface EmployeeDashboardProps {
   user: User
 }
 
 export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const defaultTab = tabParam || 'seances'
   const [stats, setStats] = useState({
     totalReservations: 0,
     todayReservations: 0,
@@ -33,60 +72,64 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
 
   const loadEmployeeData = async () => {
     try {
-      // Initialiser les données par défaut
-      let reservationsData: any[] = []
-      let seancesData: any[] = []
-      let presencesData: any[] = []
-      let paiementsData: any[] = []
+      // Initialiser les données par défaut avec le bon typage
+      let reservationsData: Reservation[] = [];
+      let seancesData: Seance[] = [];
+      let presencesData: Presence[] = [];
+      let paiementsData: Paiement[] = [];
       
       try {
         // Essayer de charger les données en parallèle
-        const results = await Promise.allSettled([
+        const responses = await Promise.allSettled([
           apiClient.getReservations(),
           apiClient.getSeances(),
           apiClient.getPresences(),
           apiClient.getPaiements(),
-        ])
+        ]);
         
-        // Traiter chaque résultat
-        if (results[0].status === 'fulfilled') {
-          reservationsData = results[0].value as any[]
-        } else {
-          console.error('Erreur lors du chargement des réservations:', results[0].reason)
+        // Fonction utilitaire pour traiter les réponses
+        function processResponse<T>(response: PromiseSettledResult<any>, errorMessage: string): T[] {
+          if (response.status === 'rejected') {
+            console.error(errorMessage, response.reason);
+            return [];
+          }
+          const data = response.value;
+          // Vérifier si c'est une réponse paginée
+          return data && 'results' in data ? data.results : Array.isArray(data) ? data : [];
         }
         
-        if (results[1].status === 'fulfilled') {
-          seancesData = results[1].value as any[]
-        } else {
-          console.error('Erreur lors du chargement des séances:', results[1].reason)
-        }
-        
-        if (results[2].status === 'fulfilled') {
-          presencesData = results[2].value as any[]
-        } else {
-          console.error('Erreur lors du chargement des présences:', results[2].reason)
-        }
-        
-        if (results[3].status === 'fulfilled') {
-          paiementsData = results[3].value as any[]
-        } else {
-          console.error('Erreur lors du chargement des paiements:', results[3].reason)
-        }
+        // Extraire et traiter chaque jeu de données
+        reservationsData = processResponse<Reservation>(responses[0], 'Erreur lors du chargement des réservations:');
+        seancesData = processResponse<Seance>(responses[1], 'Erreur lors du chargement des séances:');
+        presencesData = processResponse<Presence>(responses[2], 'Erreur lors du chargement des présences:');
+        paiementsData = processResponse<Paiement>(responses[3], 'Erreur lors du chargement des paiements:');
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error)
       }
 
-      if (!Array.isArray(reservationsData) && reservationsData && Array.isArray(reservationsData.results)) {
-        reservationsData = reservationsData.results;
+      // Extraire les résultats si nécessaire (pour les réponses paginées)
+      if (reservationsData && 'results' in reservationsData) {
+        reservationsData = (reservationsData as unknown as ApiResponse<Reservation>).results || [];
+      } else if (!Array.isArray(reservationsData)) {
+        reservationsData = [];
       }
-      if (!Array.isArray(seancesData) && seancesData && Array.isArray(seancesData.results)) {
-        seancesData = seancesData.results;
+      
+      if (seancesData && 'results' in seancesData) {
+        seancesData = (seancesData as unknown as ApiResponse<Seance>).results || [];
+      } else if (!Array.isArray(seancesData)) {
+        seancesData = [];
       }
-      if (!Array.isArray(presencesData) && presencesData && Array.isArray(presencesData.results)) {
-        presencesData = presencesData.results;
+      
+      if (presencesData && 'results' in presencesData) {
+        presencesData = (presencesData as unknown as ApiResponse<Presence>).results || [];
+      } else if (!Array.isArray(presencesData)) {
+        presencesData = [];
       }
-      if (!Array.isArray(paiementsData) && paiementsData && Array.isArray(paiementsData.results)) {
-        paiementsData = paiementsData.results;
+      
+      if (paiementsData && 'results' in paiementsData) {
+        paiementsData = (paiementsData as unknown as ApiResponse<Paiement>).results || [];
+      } else if (!Array.isArray(paiementsData)) {
+        paiementsData = [];
       }
 
       const today = new Date().toISOString().split("T")[0]
@@ -235,40 +278,43 @@ export function EmployeeDashboard({ user }: EmployeeDashboardProps) {
       </div>
 
       {/* Management Tabs */}
-      <Tabs defaultValue="seances" className="space-y-4">
-        <TabsList className="flex w-full">
-          <TabsTrigger className="flex-1" value="seances">Séances</TabsTrigger>
-          <TabsTrigger className="flex-1" value="reservations">Réservations</TabsTrigger>
-          <TabsTrigger className="flex-1" value="presence">Ma Présence</TabsTrigger>
-          <TabsTrigger className="flex-1" value="abonnements">Abonnements</TabsTrigger>
-          <TabsTrigger className="flex-1" value="abonnement-client">Abonnement client</TabsTrigger>
-          <TabsTrigger className="flex-1" value="charges">Charges</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="seances">
-          <SeanceManagement />
-        </TabsContent>
-
-        <TabsContent value="reservations">
-          <ReservationManagement />
-        </TabsContent>
-
-        <TabsContent value="presence">
-          <PresenceManagement />
-        </TabsContent>
-
-        <TabsContent value="abonnements">
-          <AbonnementManagement />
-        </TabsContent>
-
-        <TabsContent value="abonnement-client">
-          <AbonnementClientManagement />
-        </TabsContent>
-
-        <TabsContent value="charges">
-          <ChargeManagement />
-        </TabsContent>
-      </Tabs>
+      <ResponsiveTabs 
+        defaultValue={defaultTab}
+        tabs={[
+          {
+            value: "seances",
+            label: "Séances",
+            content: <SeanceManagement />
+          },
+          {
+            value: "reservations",
+            label: "Réservations",
+            content: <ReservationManagement />
+          },
+          {
+            value: "presence",
+            label: "Ma Présence",
+            content: <PresenceManagement />
+          },
+          {
+            value: "abonnements",
+            label: "Abonnements",
+            content: <AbonnementManagement />
+          },
+          {
+            value: "abonnement-client",
+            label: "Abonnements clients",
+            content: <AbonnementClientManagement />
+          },
+          {
+            value: "charges",
+            label: "Charges",
+            content: <ChargeManagement />
+          }
+        ]}
+        tabListClassName="justify-start"
+        tabTriggerClassName="px-4 py-2"
+      />
     </div>
   )
 }

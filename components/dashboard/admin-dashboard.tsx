@@ -3,7 +3,8 @@
 import { useState, useEffect, forwardRef, useImperativeHandle, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ResponsiveTabs } from "@/components/ui/responsive-tabs"
+import { useSearchParams } from 'next/navigation'
 import { Users, DollarSign, Calendar, TrendingUp, FileText } from "lucide-react"
 import { apiClient } from "@/lib/api"
 import { UserManagement } from "./user-management"
@@ -37,6 +38,10 @@ const AdminDashboard = forwardRef<AdminDashboardRef>((props, ref) => {
   const [chargeKey, setChargeKey] = useState(0)
   const [userKey, setUserKey] = useState(0)
   const userManagementRef = useRef<{ loadUsers: () => Promise<void> } | null>(null)
+
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab')
+  const defaultTab = tabParam || 'users'
 
   // expose refreshUsers method
   useImperativeHandle(ref, () => ({
@@ -227,50 +232,53 @@ const AdminDashboard = forwardRef<AdminDashboardRef>((props, ref) => {
       </div>
 
       {/* Management Tabs */}
-      <Tabs defaultValue="users" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-8">
-          <TabsTrigger value="users">Utilisateurs</TabsTrigger>
-          <TabsTrigger value="personnel">Personnel</TabsTrigger>
-          <TabsTrigger value="abonnements">Type_Abonnement</TabsTrigger>
-          <TabsTrigger value="seances">Séances</TabsTrigger>
-          <TabsTrigger value="charges">Charges</TabsTrigger>
-          <TabsTrigger value="financial">Finances</TabsTrigger>
-          <TabsTrigger value="abonnement-client">Abonnement Client</TabsTrigger>
-          <TabsTrigger value="reports">Rapports</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users">
-          <UserManagement key={userKey} ref={userManagementRef} onReload={() => setUserKey(k => k + 1)} />
-        </TabsContent>
-
-        <TabsContent value="personnel">
-          <PersonnelManagement key={personnelKey} onReload={() => setPersonnelKey(k => k + 1)} />
-        </TabsContent>
-
-        <TabsContent value="abonnements">
-          <AbonnementManagement key={abonnementKey} onReload={() => setAbonnementKey(k => k + 1)} />
-        </TabsContent>
-
-        <TabsContent value="seances">
-          <SeanceManagement key={seanceKey} onReload={() => setSeanceKey(k => k + 1)} />
-        </TabsContent>
-
-        <TabsContent value="charges">
-          <ChargeManagement key={chargeKey} onReload={() => setChargeKey(k => k + 1)} />
-        </TabsContent>
-
-        <TabsContent value="financial">
-          <FinancialReport />
-        </TabsContent>
-
-        <TabsContent value="abonnement-client">
-          <AbonnementClientManagement />
-        </TabsContent>
-
-        <TabsContent value="reports">
-          <RapportPresence />
-        </TabsContent>
-      </Tabs>
+      <ResponsiveTabs 
+        defaultValue={defaultTab}
+        tabs={[
+          {
+            value: "users",
+            label: "Utilisateurs",
+            content: <UserManagement key={userKey} ref={userManagementRef} onReload={() => setUserKey(k => k + 1)} />
+          },
+          {
+            value: "personnel",
+            label: "Personnel",
+            content: <PersonnelManagement key={personnelKey} onReload={() => setPersonnelKey(k => k + 1)} />
+          },
+          {
+            value: "abonnements",
+            label: "Abonnements",
+            content: <AbonnementManagement key={abonnementKey} onReload={() => setAbonnementKey(k => k + 1)} />
+          },
+          {
+            value: "seances",
+            label: "Séances",
+            content: <SeanceManagement key={seanceKey} onReload={() => setSeanceKey(k => k + 1)} />
+          },
+          {
+            value: "charges",
+            label: "Charges",
+            content: <ChargeManagement key={chargeKey} onReload={() => setChargeKey(k => k + 1)} />
+          },
+          {
+            value: "financial",
+            label: "Finances",
+            content: <FinancialReport />
+          },
+          {
+            value: "abonnement-client",
+            label: "Abonnements clients",
+            content: <AbonnementClientManagement />
+          },
+          {
+            value: "reports",
+            label: "Rapports",
+            content: <RapportPresence />
+          }
+        ]}
+        tabListClassName="justify-start"
+        tabTriggerClassName="px-4 py-2"
+      />
     </div>
   )
 });

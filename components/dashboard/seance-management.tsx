@@ -173,10 +173,7 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
         date_jour: editingSeance.date_jour,
         nombre_heures: Number(editingSeance.nombre_heures),
         montant_paye: editingSeance.montant_paye ? Number(editingSeance.montant_paye) : 0,
-        // Si coach_id est 'none' ou vide, on envoie null à l'API
-        coach_id: (editingSeance.coach_id && editingSeance.coach_id !== 'none') 
-          ? Number(editingSeance.coach_id) 
-          : null
+       
       };
       
       console.log('Data to send:', seanceData);
