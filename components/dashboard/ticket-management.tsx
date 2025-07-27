@@ -47,7 +47,7 @@ export function TicketManagement() {
     
     try {
       // Utiliser fetch directement car deleteTicket n'existe pas dans l'API client
-      const response = await fetch(`http://127.0.0.1:8000/api/tickets/${ticketId}/`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://typhanieyel.pythonanywhere.com/api'}/tickets/${ticketId}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

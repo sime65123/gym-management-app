@@ -69,7 +69,7 @@ const AdminDashboard = forwardRef<AdminDashboardRef>((props, ref) => {
         throw new Error("Non authentifié. Veuillez vous connecter.");
       }
 
-      const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/financial-report/`;
+      const apiUrl = `https://typhanieyel.pythonanywhere.com/api/financial-report/`;
       console.log("URL de l'API:", apiUrl);
       
       // Envoyer la requête

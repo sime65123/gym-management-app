@@ -27,7 +27,7 @@ const siteConfig = {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://gymzon.netlify.app'),
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
