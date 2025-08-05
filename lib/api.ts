@@ -954,6 +954,66 @@ async getPaiements(): Promise<Paiement[]> {
   }
 }
 
+// Validation de réservation
+async validerReservation(id: number, montant: number): Promise<any> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/reservations/${id}/valider/`, {
+      method: "POST",
+      headers: {
+        ...this.getAuthHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ montant }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || "Erreur lors de la validation de la réservation");
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Erreur lors de la validation de la réservation:", error);
+    throw error;
+  }
+}
+
+// Abonnements
+async getAbonnements(): Promise<Abonnement[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/abonnements/`, {
+      headers: this.getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data && Array.isArray(data.results)) {
+      return data.results;
+    }
+    return [];
+  } catch (error) {
+    console.error("Erreur lors de la récupération des abonnements:", error);
+    return [];
+  }
+}
+
+// Séances
+async getSeances(): Promise<Seance[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/seances/`, {
+      headers: this.getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data && Array.isArray(data.results)) {
+      return data.results;
+    }
+    return [];
+  } catch (error) {
+    console.error("Erreur lors de la récupération des séances:", error);
+    return [];
+  }
+}
+
 // Charges
 async getCharges(): Promise<Charge[]> {
   try {
@@ -972,6 +1032,46 @@ async getCharges(): Promise<Charge[]> {
     return [];
   }
 }
+
+// Créer une charge
+async createCharge(data: { titre: string; montant: number; date: string; description: string }) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/charges/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw { response: { status: response.status, data: errorData } };
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Erreur lors de la création de la charge:", error);
+    throw error;
+  }
+}
+
+// Créer une présence
+async createPresence(data: { date: string; present: boolean; commentaire?: string; personnel_id?: number; employe_id?: number }) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/presences/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw { status: response.status, message: errorData.detail || "Erreur lors de la création de la présence" };
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Erreur lors de la création de la présence:", error);
+    throw error;
+  }
+}
+
+
 
 // Abonnements clients présentiels
 async getAbonnementsClientsPresentiels(): Promise<AbonnementClientPresentiel[]> {
