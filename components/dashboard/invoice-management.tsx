@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -117,87 +118,6 @@ export function InvoiceManagement() {
                 table { width: 100%; border-collapse: collapse; margin: 20px 0; }
                 th { text-align: left; padding: 10px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb; }
                 td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
-                .text-right { text-align: right; }
-                .total { font-weight: bold; font-size: 18px; margin-top: 20px; text-align: right; }
-                .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #6b7280; }
-                @media print {
-                  @page { margin: 0; }
-                  body { padding: 20px; }
-                  .no-print { display: none; }
-                }
-              </style>
-            </head>
-            <body>
-              <div class="container">
-                <div class="header">
-                  <div class="logo">
-                    <img src="${window.location.origin}/lg1.jpg" alt="Logo GYM ZONE" />
-                  </div>
-                  <h1>GYM ZONE</h1>
-                  <p class="subtitle">Votre salle de sport professionnelle</p>
-                  <div class="divider"></div>
-                  <h2>FACTURE #${facture.uuid}</h2>
-                </div>
-                
-                <div class="info-grid">
-                  <div>
-                    <div class="info-item">
-                      <strong>Date d'émission</strong>
-                      <span>${new Date(facture.date_generation).toLocaleDateString('fr-FR')}</span>
-                    </div>
-                    <div class="info-item">
-                      <strong>Client</strong>
-                      <span>${facture.paiement.client}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div class="info-item">
-                      <strong>Service</strong>
-                      <span>${facture.paiement.abonnement?.nom || facture.paiement.seance?.titre || 'Recharge compte'}</span>
-                    </div>
-                    <div class="info-item">
-                      <strong>Statut</strong>
-                      <span>${facture.paiement.status === 'PAYE' ? 'Payé' : 'En attente'}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="section">
-                  <h3 class="section-title">Détails du paiement</h3>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Description</th>
-                        <th class="text-right">Montant</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>${facture.paiement.abonnement?.nom || facture.paiement.seance?.titre || 'Recharge de compte'}</td>
-                        <td class="text-right">${facture.paiement.montant.toLocaleString()} FCFA</td>
-                      </tr>
-                      <tr>
-                        <td class="text-right" colspan="2">
-                          <strong>Total: ${facture.paiement.montant.toLocaleString()} FCFA</strong>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                
-                <div class="footer">
-                  <p>Merci pour votre confiance !</p>
-                  <p>GYM ZONE - Tél: +225 XX XX XX XX - Email: contact@gymzone.ci</p>
-                  <p>Cet email est une facture pour le paiement ci-dessus.</p>
-                </div>
-                
-                <div class="no-print" style="margin-top: 20px; text-align: center;">
-                  <button onclick="window.print()" style="padding: 10px 20px; background-color: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
-                    Imprimer la facture
-                  </button>
-                </div>
-              </div>
-            </body>
           </html>
         `)
         printWindow.document.close()

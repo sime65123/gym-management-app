@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useToast } from "@/components/ui/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DollarSign, TrendingUp, TrendingDown, Users, Download, Calendar } from "lucide-react"
 import { apiClient } from "@/lib/api"
@@ -50,6 +51,7 @@ interface FinancialData {
 }
 
 function FinancialReport() {
+  const { toast } = useToast();
   const [financialData, setFinancialData] = useState<FinancialData | null>(null)
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState('6months')
@@ -70,41 +72,244 @@ function FinancialReport() {
 
   const loadFinancialData = async () => {
     try {
-      const data = await apiClient.getFinancialReport()
-      setFinancialData(data)
-    } catch (error) {
-      console.error('Erreur lors du chargement des données financières:', error)
+      setLoading(true);
+      const response = await apiClient.getFinancialReport() as FinancialData | { results?: FinancialData };
+      console.log("Données financières chargées:", response);
+      
+      // Gestion des différents formats de réponse
+      if (response && 'results' in response && response.results) {
+        setFinancialData(response.results);
+      } else if (response && typeof response === 'object') {
+        setFinancialData(response as FinancialData);
+      } else {
+        console.error("Format de réponse inattendu pour les données financières:", response);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données financières reçues est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    } catch (error: any) {
+      console.error("Erreur lors du chargement des données financières:", error);
+      
+      let errorMessage = "Échec du chargement des données financières";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à accéder à ces données. Veuillez vous reconnecter.";
+        } else if (status === 500) {
+          errorMessage = "Une erreur serveur est survenue. Veuillez réessayer plus tard.";
+        } else if (data && data.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   // Récupération des données brutes pour le calcul mensuel
   const fetchData = async () => {
     try {
-      const [res, abos, seancesData]: any = await Promise.all([
-        apiClient.getReservations(),
-        apiClient.getAbonnementsClientsPresentiels(),
-        apiClient.getSeances(),
-      ])
-      setReservations(Array.isArray(res) ? res as Reservation[] : (res && 'results' in res ? (res.results as Reservation[]) : []))
-      setAbonnementsClients(Array.isArray(abos) ? abos as AbonnementClientPresentiel[] : (abos && 'results' in abos ? (abos.results as AbonnementClientPresentiel[]) : []))
-      setSeances(Array.isArray(seancesData) ? seancesData as Seance[] : (seancesData && 'results' in seancesData ? (seancesData.results as Seance[]) : []))
-    } catch (error) {
-      console.error('Erreur lors du chargement des données brutes:', error)
+      setLoading(true);
+      const [res, abos, seancesData] = await Promise.all([
+        apiClient.getReservations() as Promise<Reservation[] | { results: Reservation[] }>,
+        apiClient.getAbonnementsClientsPresentiels() as Promise<AbonnementClientPresentiel[] | { results: AbonnementClientPresentiel[] }>,
+        apiClient.getSeances() as Promise<Seance[] | { results: Seance[] }>,
+      ]);
+      
+      // Gestion des réponses pour les réservations
+      const normalizedReservations = (() => {
+        if (Array.isArray(res)) {
+          return res as Reservation[];
+        }
+        const resObj = res as { results?: unknown };
+        if (resObj && 'results' in resObj && Array.isArray(resObj.results)) {
+          return resObj.results as Reservation[];
+        }
+        console.error("Format de réponse inattendu pour les réservations:", res);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données de réservations reçu est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return [];
+      })();
+      
+      // Gestion des réponses pour les abonnements
+      const normalizedAbonnements = (() => {
+        if (Array.isArray(abos)) {
+          return abos as AbonnementClientPresentiel[];
+        }
+        const abosObj = abos as { results?: unknown };
+        if (abosObj && 'results' in abosObj && Array.isArray(abosObj.results)) {
+          return abosObj.results as AbonnementClientPresentiel[];
+        }
+        console.error("Format de réponse inattendu pour les abonnements:", abos);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données d'abonnements reçu est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return [];
+      })();
+      
+      // Gestion des réponses pour les séances
+      const normalizedSeances = (() => {
+        if (Array.isArray(seancesData)) {
+          return seancesData as Seance[];
+        }
+        const seancesObj = seancesData as { results?: unknown };
+        if (seancesObj && 'results' in seancesObj && Array.isArray(seancesObj.results)) {
+          return seancesObj.results as Seance[];
+        }
+        console.error("Format de réponse inattendu pour les séances:", seancesData);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données de séances reçu est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return [];
+      })();
+      
+      setReservations(normalizedReservations);
+      setAbonnementsClients(normalizedAbonnements);
+      setSeances(normalizedSeances);
+      
+      console.log("Données brutes chargées:", {
+        reservations: normalizedReservations.length,
+        abonnements: normalizedAbonnements.length,
+        seances: normalizedSeances.length,
+      });
+      
+    } catch (error: any) {
+      console.error('Erreur lors du chargement des données brutes:', error);
+      
+      let errorMessage = "Échec du chargement des données brutes";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à accéder à ces données.";
+        } else if (status === 500) {
+          errorMessage = "Une erreur serveur est survenue. Veuillez réessayer plus tard.";
+        } else if (data && data.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setLoading(false);
     }
   }
 
   const fetchChargesAndPresences = async () => {
     try {
-      const [chargesData, presencesData]: any = await Promise.all([
-        apiClient.getCharges(),
-        apiClient.getPresences(),
-      ])
-      setCharges(Array.isArray(chargesData) ? chargesData : ((chargesData as any)?.results ?? []))
-      setPresences(Array.isArray(presencesData) ? presencesData : ((presencesData as any)?.results ?? []))
-    } catch (error) {
-      console.error('Erreur lors du chargement des charges ou présences:', error)
+      setLoading(true);
+      const [chargesResponse, presencesResponse] = await Promise.all([
+        apiClient.getCharges() as Promise<Charge[] | { results: Charge[] }>,
+        apiClient.getPresences() as Promise<Array<unknown> | { results: Array<unknown> }>,
+      ]);
+      
+      // Normalisation des charges
+      const normalizedCharges = (() => {
+        if (Array.isArray(chargesResponse)) {
+          return chargesResponse as Charge[];
+        }
+        const chargesData = chargesResponse as { results?: unknown };
+        if (chargesData && 'results' in chargesData && Array.isArray(chargesData.results)) {
+          return chargesData.results as Charge[];
+        }
+        console.error("Format de réponse inattendu pour les charges:", chargesResponse);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données de charges reçu est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return [];
+      })();
+      
+      // Normalisation des présences
+      const normalizedPresences = (() => {
+        if (Array.isArray(presencesResponse)) {
+          return presencesResponse;
+        }
+        const presencesData = presencesResponse as { results?: unknown };
+        if (presencesData && 'results' in presencesData && Array.isArray(presencesData.results)) {
+          return presencesData.results;
+        }
+        console.error("Format de réponse inattendu pour les présences:", presencesResponse);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données de présence reçu est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return [];
+      })();
+      
+      setCharges(normalizedCharges);
+      setPresences(normalizedPresences);
+      
+      console.log("Charges et présences chargées:", {
+        charges: normalizedCharges.length,
+        presences: normalizedPresences.length,
+      });
+    } catch (error: any) {
+      console.error('Erreur lors du chargement des charges ou présences:', error);
+      
+      let errorMessage = "Échec du chargement des charges et présences";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à accéder à ces données.";
+        } else if (status === 500) {
+          errorMessage = "Une erreur serveur est survenue. Veuillez réessayer plus tard.";
+        } else if (data && data.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setLoading(false);
     }
   }
 

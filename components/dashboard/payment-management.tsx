@@ -96,16 +96,22 @@ export function PaymentManagement() {
   const loadData = async () => {
     try {
       const [paiementsData, abonnementsData, seancesData, clientsData] = await Promise.all([
+      // Ajout de logs après chaque appel API
+    
         apiClient.getPaiements(),
         apiClient.getAbonnements(),
         apiClient.getSeances(),
         apiClient.getUsers(),
       ]);
 
-      setPaiements((paiementsData as any).results || (paiementsData as Paiement[]));
-      setAbonnements((abonnementsData as any).results || (abonnementsData as Abonnement[]));
-      setSeances((seancesData as any).results || (seancesData as Seance[]));
-      setClients((clientsData as any).results || (clientsData as UserType[]));
+      console.log('[DEBUG] Réponse API paiements:', paiementsData)
+    setPaiements((paiementsData as any).results || (paiementsData as Paiement[]));
+      console.log('[DEBUG] Réponse API abonnements:', abonnementsData)
+    setAbonnements((abonnementsData as any).results || (abonnementsData as Abonnement[]));
+      console.log('[DEBUG] Réponse API séances:', seancesData)
+    setSeances((seancesData as any).results || (seancesData as Seance[]));
+      console.log('[DEBUG] Réponse API clients:', clientsData)
+    setClients((clientsData as any).results || (clientsData as UserType[]));
     } catch (error) {
       console.error("Erreur lors du chargement des données:", error);
     } finally {

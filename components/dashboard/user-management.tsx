@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Edit, Trash2, Search, RotateCcw, Calendar } from "lucide-react"
-import { apiClient, type User } from "@/lib/api"
+import { apiClient, type User, type Reservation } from "@/lib/api"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -64,39 +64,110 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
 
   const loadUsers = async () => {
     try {
-      setLoading(true)
-      const response = await apiClient.getUsers()
-      const usersArray = (response as any)?.results || (Array.isArray(response) ? response : [])
-      setUsers(usersArray)
-    } catch (error) {
-      console.error("Error loading users:", error)
+      setLoading(true);
+      const response = await apiClient.getUsers() as User[] | { results: User[] };
+      
+      // Normalisation de la réponse
+      const usersArray = (() => {
+        if (Array.isArray(response)) return response;
+        if (response && 'results' in response && Array.isArray(response.results)) {
+          return response.results;
+        }
+        console.error("Format de réponse inattendu pour les utilisateurs:", response);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données reçues est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return [];
+      })();
+      
+      setUsers(usersArray);
+      
+      if (onReload) {
+        onReload();
+      }
+    } catch (error: any) {
+      console.error("Erreur lors du chargement des utilisateurs:", error);
+      
+      let errorMessage = "Impossible de charger la liste des utilisateurs";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à accéder à ces données.";
+        } else if (status === 500) {
+          errorMessage = "Une erreur serveur est survenue. Veuillez réessayer plus tard.";
+        } else if (data?.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de charger la liste des utilisateurs",
+        description: errorMessage,
         variant: "destructive",
-      })
+        duration: 5000,
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const handleCreateUser = async () => {
     try {
-      const userData = await apiClient.createUser(formData)
+      if (!formData.password) {
+        toast({
+          title: "Champ manquant",
+          description: "Le mot de passe est obligatoire pour créer un utilisateur.",
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+      
+      const userData = await apiClient.createUser(formData);
+      
       toast({
         title: "Utilisateur créé",
-        description: `L'utilisateur a été ajouté avec succès.`,
-      })
-      setIsCreateDialogOpen(false)
-      resetForm()
-      await loadUsers()
-    } catch (error) {
-      console.error("Error creating user:", error)
+        description: `L'utilisateur ${formData.email} a été créé avec succès.`,
+        duration: 5000,
+      });
+      
+      setIsCreateDialogOpen(false);
+      resetForm();
+      await loadUsers();
+    } catch (error: any) {
+      console.error("Erreur lors de la création de l'utilisateur:", error);
+      
+      let errorMessage = "Impossible de créer l'utilisateur";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 400 && data?.email) {
+          errorMessage = `L'adresse email ${formData.email} est déjà utilisée.`;
+        } else if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à créer un utilisateur.";
+        } else if (status === 422) {
+          errorMessage = "Les données fournies sont invalides.";
+        } else if (data?.detail) {
+          errorMessage = data.detail;
+        }
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de créer l'utilisateur",
+        description: errorMessage,
         variant: "destructive",
-      })
+        duration: 5000,
+      });
     }
   }
 
@@ -116,31 +187,71 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
         title: "Succès",
         description: "L'utilisateur a été mis à jour avec succès.",
       })
-    } catch (error) {
-      console.error("Error updating user:", error)
+    } catch (error: any) {
+      console.error("Erreur lors de la mise à jour de l'utilisateur:", error);
+      
+      let errorMessage = "Impossible de mettre à jour l'utilisateur";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 400 && data?.email) {
+          errorMessage = `L'adresse email est déjà utilisée.`;
+        } else if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à modifier cet utilisateur.";
+        } else if (status === 404) {
+          errorMessage = "Utilisateur introuvable. Il a peut-être été supprimé.";
+        } else if (status === 422) {
+          errorMessage = "Les données fournies sont invalides.";
+        } else if (data?.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de mettre à jour l'utilisateur",
+        description: errorMessage,
         variant: "destructive",
-      })
+        duration: 5000,
+      });
     }
   }
 
   const handleDeleteUser = async (id: number) => {
-      try {
-        await apiClient.deleteUser(id)
+    try {
+      await apiClient.deleteUser(id)
       await loadUsers()
       toast({
         title: "Succès",
         description: "L'utilisateur a été supprimé avec succès.",
       })
-      } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting user:", error)
+      
+      let errorMessage = "Impossible de supprimer l'utilisateur";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à supprimer cet utilisateur.";
+        } else if (status === 404) {
+          errorMessage = "Utilisateur introuvable. Il a peut-être été supprimé.";
+        } else if (data?.detail) {
+          errorMessage = data.detail;
+        }
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de supprimer l'utilisateur",
+        description: errorMessage,
         variant: "destructive",
-      })
+        duration: 5000,
+      });
     }
   }
 

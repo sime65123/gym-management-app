@@ -18,36 +18,47 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/components/auth/auth-context"
 
 interface Seance {
-  id: number
-  client_nom?: string | null
-  client_prenom?: string | null
-  date_jour?: string | null
-  nombre_heures?: number | null
-  montant_paye?: number | null
+  id: number;
+  client_nom?: string | null;
+  client_prenom?: string | null;
+  date_jour?: string | null;
+  nombre_heures?: number | null;
+  montant_paye?: number | null;
+  coach_id?: number | null;
   coach?: {
-    id: number
-    nom: string
-    prenom: string
-    categorie: string
-  } | null
-  ticket_url?: string | null
-  titre?: string
-  description?: string
-  date_heure?: string
-  capacite?: number
-  client_id?: number | null
-  client_email?: string | null
-  paye_directement?: boolean
-  ticket_id?: number | null
-  ticket_pdf_url?: string | null
+    id: number;
+    nom: string;
+    prenom: string;
+    categorie: string;
+  } | null;
+  ticket_url?: string | null;
+  titre?: string;
+  description?: string;
+  date_heure?: string;
+  capacite?: number;
+  client_id?: number | null;
+  client_email?: string | null;
+  paye_directement?: boolean;
+  ticket_id?: number | null;
+  ticket_pdf_url?: string | null;
 }
 
 interface Coach {
-  id: number
-  nom: string
-  prenom: string
-  categorie: string
+  id: number;
+  nom: string;
+  prenom: string;
+  categorie: string;
 }
+
+interface NewSeanceState {
+  client_nom: string;
+  client_prenom: string;
+  date_jour: string;
+  nombre_heures: number | null;
+  montant_paye: number | null;
+  coach_id: number | null;
+}
+
 export function SeanceManagement({ onReload }: { onReload?: () => void }) {
   const [seances, setSeances] = useState<Seance[]>([]);
   const [coachs, setCoachs] = useState<Coach[]>([]);
@@ -56,14 +67,14 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingSeance, setEditingSeance] = useState<Seance | null>(null);
-  const [newSeance, setNewSeance] = useState({
+  const [newSeance, setNewSeance] = useState<NewSeanceState>({
     client_nom: '',
     client_prenom: '',
-    date_jour: formatDateFns(new Date(), 'yyyy-MM-dd'),
+    date_jour: new Date().toISOString().split('T')[0],
     nombre_heures: 1,
-    montant_paye: '',
-    coach_id: ''
-  })
+    montant_paye: 0,
+    coach_id: null,
+  });
   
   const { toast } = useToast()
   const { user } = useAuth()
@@ -75,30 +86,62 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
   // Charger les séances depuis l'API
   const loadSeances = useCallback(async () => {
     try {
-      setLoading(true)
-      console.log('Chargement des séances...')
-      const response = await apiClient.getSeances()
-      console.log('Réponse de l\'API (séances):', response)
+      setLoading(true);
+      console.log('Chargement des séances...');
       
-      // Vérifier si la réponse est un tableau
-      if (Array.isArray(response)) {
-        console.log('Réponse est un tableau avec', response.length, 'séances')
-        setSeances(response)
-      } 
-      // Vérifier si c'est un objet avec une propriété results qui est un tableau
-      else if (response && typeof response === 'object' && response !== null && 'results' in response && Array.isArray(response.results)) {
-        console.log('Réponse contient un tableau results avec', response.results.length, 'séances')
-        setSeances(response.results)
-      } 
-      // Gestion des autres cas
-      else {
-        console.error("Format de réponse inattendu:", response)
+      // Récupération des séances
+      const response = await apiClient.getSeances() as Seance[] | { results: Seance[] };
+      console.log('Réponse de l\'API (séances):', response);
+      
+      // Normalisation de la réponse
+      const normalizedSeances = (() => {
+        if (Array.isArray(response)) {
+          console.log('Réponse est un tableau avec', response.length, 'séances');
+          return response;
+        } 
+        // Vérifier si c'est un objet avec une propriété results qui est un tableau
+        if (response && 'results' in response && Array.isArray(response.results)) {
+          console.log('Réponse contient un tableau results avec', response.results.length, 'séances');
+          return response.results;
+        }
+        
+        console.error("Format de réponse inattendu pour les séances:", response);
         toast({
-          title: "Format de données inattendu",
-          description: "Les données reçues du serveur ne sont pas au format attendu.",
+          title: "Erreur de format",
+          description: "Le format des données reçues est incorrect.",
           variant: "destructive",
-        })
-        setSeances([])
+          duration: 5000,
+        });
+        return [];
+      })();
+      
+      // Trier les séances par date (les plus récentes en premier)
+      const sortedSeances = [...normalizedSeances].sort((a, b) => {
+        const dateA = a.date_heure ? new Date(a.date_heure).getTime() : 0;
+        const dateB = b.date_heure ? new Date(b.date_heure).getTime() : 0;
+        return dateB - dateA; // Ordre décroissant
+      });
+      
+      setSeances(sortedSeances);
+      
+      // Charger la liste des coachs si nécessaire
+      if (isAdmin || isEmployee) {
+        try {
+          const coachesResponse = await apiClient.getCoachs() as Coach[] | { results: Coach[] };
+          const normalizedCoaches = Array.isArray(coachesResponse) 
+            ? coachesResponse 
+            : (coachesResponse?.results || []);
+          
+          setCoachs(normalizedCoaches);
+        } catch (coachError) {
+          console.error("Erreur lors du chargement des coachs:", coachError);
+          toast({
+            title: "Erreur",
+            description: "Impossible de charger la liste des coachs",
+            variant: "destructive",
+            duration: 5000,
+          });
+        }
       }
     } catch (error: any) {
       console.error("Erreur lors du chargement des séances:", error)
@@ -131,27 +174,27 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
     }
   }, [toast])
 
-  // Charger les coachs disponibles
-  const loadCoachs = useCallback(async () => {
-    try {
-      const response = await apiClient.getPersonnel()
-      // Vérifier si la réponse contient une propriété results
-      const coachsData = Array.isArray(response) 
-        ? response 
-        : (response && typeof response === 'object' && 'results' in response && Array.isArray(response.results))
-          ? response.results 
-          : [];
-      setCoachs(coachsData.filter((coach: any) => coach.categorie === "COACH"))
-    } catch (error) {
-      console.error("Erreur lors du chargement des coachs:", error)
-    }
-  }, [])
-
   // Charger les données au montage du composant
   useEffect(() => {
-    loadSeances()
-    loadCoachs()
-  }, [loadSeances, loadCoachs])
+    const fetchData = async () => {
+      try {
+        await loadSeances();
+        if (onReload) {
+          onReload();
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement des données:", error);
+        toast({
+          title: "Erreur",
+          description: "Une erreur est survenue lors du chargement des séances",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    };
+    
+    fetchData();
+  }, [loadSeances, onReload, toast])
 
   // Ouvrir le ticket PDF dans un nouvel onglet
   const handleViewTicket = (ticketUrl: string) => {
@@ -217,10 +260,14 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
     
     const editingData = {
       ...seance,
-      coach_id: seance.coach?.id?.toString() || 'none',
       // S'assurer que les valeurs numériques sont bien définies
       nombre_heures: seance.nombre_heures || 1,
-      montant_paye: seance.montant_paye ? seance.montant_paye.toString() : ''
+      montant_paye: seance.montant_paye || 0,
+      // Ajouter l'ID du coach à l'objet coach pour la sélection
+      coach: seance.coach ? {
+        ...seance.coach,
+        id: seance.coach.id || 0
+      } : null
     };
     
     console.log('Editing data prepared:', editingData);
@@ -231,14 +278,21 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
   // Gérer la création d'une nouvelle séance
   const handleCreateSeance = async () => {
     try {
+      setLoading(true);
+      
       // Préparer les données pour l'API
       const seanceData = {
         ...newSeance,
-        nombre_heures: Number(newSeance.nombre_heures),
-        montant_paye: Number(newSeance.montant_paye),
-        // Si coach_id est 'none' ou vide, on envoie null à l'API
-        coach_id: (newSeance.coach_id && newSeance.coach_id !== 'none') 
-          ? Number(newSeance.coach_id) 
+        nombre_heures: Number(newSeance.nombre_heures) || 1,
+        montant_paye: Number(newSeance.montant_paye) || 0,
+        // Gérer le coach sélectionné
+        coach: newSeance.coach_id !== null && newSeance.coach_id !== undefined
+          ? {
+              id: newSeance.coach_id,
+              nom: '',
+              prenom: '',
+              categorie: 'COACH'
+            }
           : null
       };
       
@@ -258,17 +312,36 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
         client_prenom: '',
         date_jour: formatDateFns(new Date(), 'yyyy-MM-dd'),
         nombre_heures: 1,
-        montant_paye: '',
-        coach_id: ''
+        montant_paye: 0,
+        coach_id: null
       });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erreur lors de la création de la séance:", error);
+      
+      let errorMessage = "Une erreur est survenue lors de la création de la séance.";
+      
+      if (error.response) {
+        if (error.response.status === 401) {
+          errorMessage = "Session expirée. Veuillez vous reconnecter.";
+        } else if (error.response.status === 403) {
+          errorMessage = "Vous n'avez pas les droits pour créer une séance.";
+        } else if (error.response.status >= 500) {
+          errorMessage = "Erreur serveur. Veuillez réessayer plus tard.";
+        } else if (error.response.data?.detail) {
+          errorMessage = error.response.data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Une erreur est survenue lors de la création de la séance.",
+        description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -560,8 +633,11 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                       id="nombre_heures"
                       type="number"
                       min="1"
-                      value={newSeance.nombre_heures}
-                      onChange={(e) => setNewSeance({...newSeance, nombre_heures: Number(e.target.value)})}
+                      value={newSeance.nombre_heures || ''}
+                      onChange={(e) => setNewSeance({
+                        ...newSeance, 
+                        nombre_heures: e.target.value === '' ? null : Number(e.target.value)
+                      })}
                       className="col-span-3"
                       required
                   />
@@ -572,10 +648,13 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                     </Label>
                   <Input
                       id="montant_paye"
-                    type="number"
+                      type="number"
                       min="0"
-                      value={newSeance.montant_paye}
-                      onChange={(e) => setNewSeance({...newSeance, montant_paye: e.target.value})}
+                      value={newSeance.montant_paye || ''}
+                      onChange={(e) => setNewSeance({
+                        ...newSeance, 
+                        montant_paye: e.target.value === '' ? null : Number(e.target.value)
+                      })}
                       className="col-span-3"
                       required
                     />
@@ -585,8 +664,11 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                       Coach (optionnel)
                     </Label>
                     <Select
-                      value={newSeance.coach_id || undefined}
-                      onValueChange={(value) => setNewSeance({...newSeance, coach_id: value})}
+                      value={newSeance.coach_id ? newSeance.coach_id.toString() : 'none'}
+                      onValueChange={(value) => setNewSeance({
+                        ...newSeance, 
+                        coach_id: value === 'none' ? null : Number(value)
+                      })}
                     >
                       <SelectTrigger className="col-span-3">
                         <SelectValue placeholder="Sélectionner un coach" />
@@ -668,8 +750,14 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                         id="edit_nombre_heures"
                         type="number"
                         min="1"
-                        value={editingSeance.nombre_heures || 1}
-                        onChange={(e) => setEditingSeance({...editingSeance, nombre_heures: Number(e.target.value)})}
+                        value={editingSeance.nombre_heures || ''}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setEditingSeance({
+                            ...editingSeance,
+                            nombre_heures: value === '' ? null : Number(value)
+                          });
+                        }}
                         className="col-span-3"
                         required
                       />
@@ -688,7 +776,7 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                           const value = e.target.value;
                           setEditingSeance({
                             ...editingSeance, 
-                            montant_paye: value === '' ? '' : value
+                            montant_paye: value === '' ? null : Number(value)
                           });
                         }}
                         className="col-span-3"
@@ -700,8 +788,11 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                         Coach (optionnel)
                       </Label>
                       <Select
-                        value={editingSeance.coach_id || undefined}
-                        onValueChange={(value) => setEditingSeance({...editingSeance, coach_id: value})}
+                        value={editingSeance.coach_id ? editingSeance.coach_id.toString() : 'none'}
+                        onValueChange={(value) => setEditingSeance({
+                          ...editingSeance, 
+                          coach_id: value === 'none' ? null : Number(value)
+                        })}
                       >
                         <SelectTrigger className="col-span-3">
                           <SelectValue placeholder="Sélectionner un coach" />
@@ -747,70 +838,70 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-              {filteredSeances.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
-                    {searchTerm 
-                      ? "Aucune séance ne correspond à votre recherche" 
-                      : "Aucune séance trouvée"}
+            {filteredSeances.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                  {searchTerm 
+                    ? "Aucune séance ne correspond à votre recherche" 
+                    : "Aucune séance trouvée"}
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredSeances.map((seance) => (
+                <TableRow key={seance.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center space-x-2">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span>{seance.client_prenom} {seance.client_nom}</span>
+                    </div>
                   </TableCell>
-                </TableRow>
-              ) : (
-                filteredSeances.map((seance) => (
-              <TableRow key={seance.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center space-x-2">
-                        <User className="h-4 w-4 text-gray-500" />
-                        <span>{seance.client_prenom} {seance.client_nom}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Calendar className="h-4 w-4 text-gray-500" />
-                        <span>{formatDate(seance.date_jour)}</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4 text-gray-500" />
-                        <span>{(seance.nombre_heures || 0)} heure{(seance.nombre_heures || 0) > 1 ? 's' : ''}</span>
-                  </div>
-                </TableCell>
-                    <TableCell>{Number(seance.montant_paye || 0).toLocaleString()} FCFA</TableCell>
-                <TableCell>
-                      {seance.coach 
-                        ? `${seance.coach.prenom || ''} ${seance.coach.nom || ''}`.trim() || 'Coach sans nom'
-                        : 'Non spécifié'}
-                </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        {isEmployee && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(seance)}
-                            title="Modifier la séance"
-                          >
-                            <Calendar className="h-4 w-4" />
-                    </Button>
-                        )}
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 text-gray-500" />
+                      <span>{formatDate(seance.date_jour)}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="h-4 w-4 text-gray-500" />
+                      <span>{(seance.nombre_heures || 0)} heure{(seance.nombre_heures || 0) > 1 ? 's' : ''}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>{Number(seance.montant_paye || 0).toLocaleString()} FCFA</TableCell>
+                  <TableCell>
+                    {seance.coach 
+                      ? `${seance.coach.prenom || ''} ${seance.coach.nom || ''}`.trim() || 'Coach sans nom'
+                      : 'Non spécifié'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end space-x-2">
+                      {isEmployee && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDownloadTicket(seance)}
-                          title="Télécharger le ticket"
+                          onClick={() => openEditDialog(seance)}
+                          title="Modifier la séance"
                         >
-                          <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-                ))
-              )}
+                          <Calendar className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDownloadTicket(seance)}
+                        title="Télécharger le ticket"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

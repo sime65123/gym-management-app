@@ -37,6 +37,7 @@ export function ReservationManagement() {
       
       console.log("Chargement des réservations...");
       const reservations = await apiClient.getReservations();
+    console.log('[DEBUG] Réponse API getReservations:', reservations);
       
       // Trier les réservations par date de création (les plus récentes en premier)
       const sortedReservations = [...reservations].sort((a, b) => {

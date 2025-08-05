@@ -249,6 +249,17 @@ class ApiClient {
     };
   }
 
+  /**
+   * Normalise les données de liste pour gérer à la fois les tableaux simples
+   * et les réponses paginées avec une propriété `results`
+   */
+  private normalizeList<T>(data: any): T[] {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if ('results' in data && Array.isArray(data.results)) return data.results;
+    return [];
+  }
+
   private async handleResponse<T = any>(response: Response): Promise<T> {
     console.log(`Réponse reçue - Status: ${response.status} ${response.statusText}`, response);
     
@@ -462,16 +473,8 @@ class ApiClient {
         throw new Error(`Erreur HTTP: ${response.status}`);
       }
       
-      const data = await response.json() as Ticket[] | { results: Ticket[] } | undefined;
-      
-      // Gérer à la fois les formats de réponse possibles
-      if (Array.isArray(data)) {
-        return data;
-      } else if (data && 'results' in data && Array.isArray(data.results)) {
-        return data.results;
-      }
-      
-      return [];
+      const data = await this.handleResponse<any>(response);
+      return this.normalizeList<Ticket>(data);
     } catch (error) {
       console.error('Erreur lors de la récupération des tickets:', error);
       return [];
@@ -871,11 +874,12 @@ class ApiClient {
   }
 
   // Séances
-  async getSeances() {
+  async getSeances(): Promise<Seance[]> {
     const response = await fetch(`${API_BASE_URL}/seances/`, {
       headers: this.getAuthHeaders(),
     })
-    return this.handleResponse(response)
+    const data = await this.handleResponse<any>(response);
+    return this.normalizeList<Seance>(data);
   }
 
   async createSeance(data: any): Promise<Seance> {
@@ -1245,15 +1249,48 @@ class ApiClient {
   }
 
   // Paiements
-  async getPaiements() {
+  async getPaiements(): Promise<Paiement[]> {
     try {
-      const response = await fetch(`${API_BASE_URL}/paiements/`, {
-      headers: this.getAuthHeaders(),
-      });
-      return await this.handleResponse<Paiement[]>(response);
+      let allPaiements: Paiement[] = [];
+      let nextUrl: string | null = `${API_BASE_URL}/paiements/`;
+      let page = 1;
+      
+      console.log('[API] Début de la récupération des paiements');
+      
+      // Tant qu'il y a une page suivante, on continue de récupérer les paiements
+      while (nextUrl) {
+        console.log(`[API] Récupération de la page ${page} des paiements...`);
+        const response = await fetch(nextUrl, {
+          headers: this.getAuthHeaders(),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Erreur HTTP: ${response.status}`);
+        }
+        
+        const data: any = await this.handleResponse<any>(response);
+        const normalizedData = this.normalizeList<Paiement>(data);
+        
+        // Ajouter les paiements de la page courante
+        allPaiements = [...allPaiements, ...normalizedData];
+        console.log(`[API] ${normalizedData.length} paiements récupérés (total: ${allPaiements.length})`);
+        
+        // Vérifier s'il y a une page suivante (pour les réponses paginées)
+        if (data && typeof data === 'object' && 'next' in data) {
+          nextUrl = data.next || null;
+        } else {
+          nextUrl = null;
+        }
+        
+        page++;
+      }
+      
+      console.log(`[API] Récupération des paiements terminée. Total: ${allPaiements.length}`);
+      return allPaiements;
+      
     } catch (error) {
       console.error('Erreur lors de la récupération des paiements:', error);
-      throw error;
+      throw error; // Propager l'erreur pour une meilleure gestion en amont
     }
   }
 
@@ -1358,11 +1395,17 @@ class ApiClient {
   }
 
   // Présence Personnel
-  async getPresences() {
-    const response = await fetch(`${API_BASE_URL}/presences/?page_size=1000`, {
-      headers: this.getAuthHeaders(),
-    })
-    return this.handleResponse(response)
+  async getPresences(): Promise<Array<PresenceRapport>> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/presences/?page_size=1000`, {
+        headers: this.getAuthHeaders(),
+      });
+      const data = await this.handleResponse<any>(response);
+      return this.normalizeList<PresenceRapport>(data);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des présences:", error);
+      return [];
+    }
   }
 
   async createPresence(data: { 
@@ -1480,8 +1523,26 @@ class ApiClient {
   async getPersonnel() {
     const response = await fetch(`${API_BASE_URL}/personnel/`, {
       headers: this.getAuthHeaders(),
-    })
-    return this.handleResponse(response)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const error = new Error(errorData.detail || 'Erreur lors de la récupération du personnel');
+      error.response = response;
+      error.data = errorData;
+      throw error;
+    }
+    
+    const data = await response.json();
+    
+    // Handle both array and { results: [] } response formats
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data && Array.isArray(data.results)) {
+      return data.results;
+    }
+    
+    return [];
   }
 
   async createPersonnel(data: any) {
@@ -1638,11 +1699,17 @@ class ApiClient {
   }
 
   // Abonnements clients (employé)
-  async getAbonnementsClients() {
-    const response = await fetch(`${API_BASE_URL}/abonnements-clients/`, {
-      headers: this.getAuthHeaders(),
-    });
-    return this.handleResponse<AbonnementClientPresentiel[]>(response);
+  async getAbonnementsClients(): Promise<AbonnementClientPresentiel[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/abonnements-clients/`, {
+        headers: this.getAuthHeaders(),
+      });
+      const data = await this.handleResponse<any>(response);
+      return this.normalizeList<AbonnementClientPresentiel>(data);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des abonnements clients:", error);
+      return [];
+    }
   }
 
   async createAbonnementClientDirect(data: { client_id: string; abonnement_id: string; date_debut: string }) {
@@ -1655,11 +1722,17 @@ class ApiClient {
   }
 
   // Abonnements clients présentiels
-  async getAbonnementsClientsPresentiels() {
-    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/`, {
-      headers: this.getAuthHeaders(),
-    })
-    return this.handleResponse(response)
+  async getAbonnementsClientsPresentiels(): Promise<AbonnementClientPresentiel[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/`, {
+        headers: this.getAuthHeaders(),
+      });
+      const data = await this.handleResponse<any>(response);
+      return this.normalizeList<AbonnementClientPresentiel>(data);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des abonnements clients présentiels:", error);
+      return [];
+    }
   }
 
   async createAbonnementClientPresentiel(data: any) {

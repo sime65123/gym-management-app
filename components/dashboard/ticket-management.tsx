@@ -21,56 +21,109 @@ export function TicketManagement() {
 
   const loadTickets = async () => {
     try {
-      setLoading(true)
-      const data = await apiClient.getTickets()
-      // Gérer les différents formats de réponse possibles
-      const ticketsData = Array.isArray(data) 
-        ? data 
-        : (data && typeof data === 'object' && 'results' in data && Array.isArray((data as any).results))
-          ? (data as any).results 
-          : [];
-      setTickets(ticketsData)
-    } catch (error) {
-      console.error("Erreur lors du chargement des tickets:", error)
+      setLoading(true);
+      const response = await apiClient.getTickets() as { results?: Ticket[] } | Ticket[];
+      console.log("Données des tickets chargées:", response);
+      
+      // Gérer les différents formats de réponse
+      if (response && typeof response === 'object' && 'results' in response) {
+        setTickets(Array.isArray(response.results) ? response.results : []);
+      } 
+      // Si c'est directement un tableau
+      else if (Array.isArray(response)) {
+        setTickets(response);
+      } else {
+        console.error("Format de réponse inattendu:", response);
+        setTickets([]);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données reçues est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    } catch (error: any) {
+      console.error("Erreur lors du chargement des tickets:", error);
+      
+      let errorMessage = "Échec du chargement des tickets";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à accéder à ces données. Veuillez vous reconnecter.";
+        } else if (status === 500) {
+          errorMessage = "Une erreur serveur est survenue. Veuillez réessayer plus tard.";
+        } else if (data && data.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de charger les tickets",
+        description: errorMessage,
         variant: "destructive",
-      })
+        duration: 5000,
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const handleDeleteTicket = async (ticketId: number) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer ce ticket ?")) return
+    if (!confirm("Êtes-vous sûr de vouloir supprimer ce ticket ?")) return;
     
     try {
-      // Utiliser fetch directement car deleteTicket n'existe pas dans l'API client
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://typhanieyel.pythonanywhere.com/api'}/tickets/${ticketId}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json',
         },
-      })
+      });
       
       if (!response.ok) {
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Erreur ${response.status}: ${response.statusText}`);
       }
       
       toast({
         title: "Succès",
         description: "Ticket supprimé avec succès",
-      })
-      loadTickets()
-    } catch (error) {
-      console.error("Erreur lors de la suppression du ticket:", error)
+        duration: 5000,
+      });
+      
+      // Recharger la liste des tickets
+      loadTickets();
+    } catch (error: any) {
+      console.error("Erreur lors de la suppression du ticket:", error);
+      
+      let errorMessage = "Impossible de supprimer le ticket";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à effectuer cette action.";
+        } else if (status === 404) {
+          errorMessage = "Le ticket spécifié est introuvable.";
+        } else if (data && data.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Erreur",
-        description: "Impossible de supprimer le ticket",
+        description: errorMessage,
         variant: "destructive",
-      })
+        duration: 5000,
+      });
     }
   }
 

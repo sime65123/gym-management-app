@@ -79,6 +79,7 @@ export function RapportPresence() {
     try {
       setLoading(true)
       const response = await apiClient.getRapportJournalier() as ApiResponse | PresenceRapport[]
+      console.log("[DEBUG] Réponse API getRapportJournalier:", response)
       if (Array.isArray(response)) {
         setPresences(response)
       } else if (response && 'results' in response) {
@@ -138,6 +139,7 @@ export function RapportPresence() {
       setLoadingAnciens(true)
       // Appel à l'API pour récupérer les rapports de la date sélectionnée
       const response = await apiClient.getRapportParDate(date)
+      console.log(`[DEBUG] Réponse API getRapportParDate(${date}):`, response)
       
       // Vérifier si la réponse est un tableau ou contient une propriété results
       const rapports = Array.isArray(response) ? response : (Array.isArray((response as any)?.results) ? (response as any).results : [])

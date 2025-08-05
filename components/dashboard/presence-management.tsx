@@ -81,39 +81,41 @@ export function PresenceManagement() {
 
   const loadPresences = async () => {
     try {
-      const response = await apiClient.getPresences() as Presence[] | { results: Presence[] };
-      // Gérer le cas où response est déjà un tableau ou contient une propriété results
-      const allPresences: Presence[] = Array.isArray(response) 
-        ? response 
-        : 'results' in response 
-          ? response.results 
-          : [];
+      setLoading(true);
+      const allPresences = await apiClient.getPresences();
+      console.log("Données des présences chargées:", allPresences);
       
       // Grouper les présences par date
       const grouped = allPresences.reduce((acc: {[key: string]: Presence[]}, presence: Presence) => {
-        const date = presence.date_jour
+        const date = presence.date_jour;
         if (!acc[date]) {
-          acc[date] = []
+          acc[date] = [];
         }
-        acc[date].push(presence)
-        return acc
-      }, {})
+        acc[date].push(presence);
+        return acc;
+      }, {});
       
       // Trier les dates par ordre décroissant (plus récent en premier)
-      const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-      const sortedGrouped: {[key: string]: Presence[]} = {}
-      sortedDates.forEach(date => {
-        sortedGrouped[date] = grouped[date]
-      })
+      const sortedDates = Object.keys(grouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+      const sortedGrouped: {[key: string]: Presence[]} = {};
       
-      setGroupedPresences(sortedGrouped)
-      setPresences(allPresences) // Garder la liste complète pour les stats
+      sortedDates.forEach(date => {
+        sortedGrouped[date] = grouped[date];
+      });
+      
+      setGroupedPresences(sortedGrouped);
+      setPresences(allPresences); // Garder la liste complète pour les stats
     } catch (error) {
-      console.error("Erreur lors du chargement des présences:", error)
+      console.error("Erreur lors du chargement des présences:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les présences",
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const loadPersonnel = async () => {
     try {

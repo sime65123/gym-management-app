@@ -28,6 +28,8 @@ interface Personnel {
   prenom: string
   date_emploi: string
   categorie: "COACH" | "MENAGE" | "AIDE_SOIGNANT" | "AUTRE"
+  created_at?: string
+  updated_at?: string
 }
 
 export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
@@ -51,13 +53,55 @@ export function PersonnelManagement({ onReload }: { onReload?: () => void }) {
 
   const loadPersonnel = async () => {
     try {
-      const response: any = await apiClient.getPersonnel()
-      console.log("API personnel", response)
-      setPersonnel([...(response.results || response)])
-    } catch (error) {
-      console.error("Erreur lors du chargement du personnel:", error)
+      setLoading(true);
+      const response = await apiClient.getPersonnel() as { results?: Personnel[] } | Personnel[];
+      console.log("Données du personnel chargées:", response);
+      
+      // Gérer les différents formats de réponse
+      if (response && typeof response === 'object' && 'results' in response) {
+        setPersonnel(Array.isArray(response.results) ? response.results : []);
+      } 
+      // Si c'est directement un tableau
+      else if (Array.isArray(response)) {
+        setPersonnel(response);
+      } else {
+        console.error("Format de réponse inattendu:", response);
+        setPersonnel([]);
+        toast({
+          title: "Erreur de format",
+          description: "Le format des données reçues est incorrect.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
+    } catch (error: any) {
+      console.error("Erreur lors du chargement du personnel:", error);
+      
+      let errorMessage = "Échec du chargement du personnel";
+      
+      if (error.response) {
+        const { status, data } = error.response;
+        console.error(`Erreur HTTP ${status}:`, data);
+        
+        if (status === 401 || status === 403) {
+          errorMessage = "Vous n'êtes pas autorisé à accéder à ces données. Veuillez vous reconnecter.";
+        } else if (status === 500) {
+          errorMessage = "Une erreur serveur est survenue. Veuillez réessayer plus tard.";
+        } else if (data && data.detail) {
+          errorMessage = data.detail;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Erreur",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000,
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
