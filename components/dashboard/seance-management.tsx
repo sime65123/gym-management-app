@@ -61,19 +61,20 @@ interface NewSeanceState {
 
 export function SeanceManagement({ onReload }: { onReload?: () => void }) {
   const [seances, setSeances] = useState<Seance[]>([]);
-  const [coachs, setCoachs] = useState<Coach[]>([]);
+  const [coachs, setCoachs] = useState<Coach[]>([]); // Liste des coachs filtrés depuis personnel
+
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingSeance, setEditingSeance] = useState<Seance | null>(null);
-  const [newSeance, setNewSeance] = useState<NewSeanceState>({
+  const [newSeance, setNewSeance] = useState<any>({
     client_nom: '',
     client_prenom: '',
     date_jour: new Date().toISOString().split('T')[0],
     nombre_heures: 1,
     montant_paye: 0,
-    coach_id: null,
+    personnel_id: null, // Remplace coach_id
   });
   
   const { toast } = useToast()
@@ -124,24 +125,20 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
       
       setSeances(sortedSeances);
       
-      // Charger la liste des coachs si nécessaire
-      if (isAdmin || isEmployee) {
-        try {
-          const coachesResponse = await apiClient.getCoachs() as Coach[] | { results: Coach[] };
-          const normalizedCoaches = Array.isArray(coachesResponse) 
-            ? coachesResponse 
-            : (coachesResponse?.results || []);
-          
-          setCoachs(normalizedCoaches);
-        } catch (coachError) {
-          console.error("Erreur lors du chargement des coachs:", coachError);
-          toast({
-            title: "Erreur",
-            description: "Impossible de charger la liste des coachs",
-            variant: "destructive",
-            duration: 5000,
-          });
-        }
+      // Charger la liste des coachs (personnels ayant role 'coach')
+      try {
+        const personnels = await apiClient.getPersonnel();
+        // Filtrer uniquement les coachs
+        const coachs = personnels.filter((p: any) => (p.role === 'coach' || p.categorie === 'COACH'));
+        setCoachs(coachs);
+      } catch (coachError) {
+        console.error("Erreur lors du chargement des coachs:", coachError);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger la liste des coachs",
+          variant: "destructive",
+          duration: 5000,
+        });
       }
     } catch (error: any) {
       console.error("Erreur lors du chargement des séances:", error)
@@ -211,12 +208,12 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
       
       // Préparer les données pour l'API
       const seanceData = {
-        client_nom: editingSeance.client_nom,
-        client_prenom: editingSeance.client_prenom,
-        date_jour: editingSeance.date_jour,
-        nombre_heures: Number(editingSeance.nombre_heures),
-        montant_paye: editingSeance.montant_paye ? Number(editingSeance.montant_paye) : 0,
-       
+        client_nom: editingSeance.client_nom ?? '',
+        client_prenom: editingSeance.client_prenom ?? '',
+        date_jour: editingSeance.date_jour ?? '',
+        nombre_heures: Number(editingSeance.nombre_heures) || 1,
+        montant_paye: Number(editingSeance.montant_paye) || 0,
+        personnel_id: editingSeance.coach?.id ?? 0, // coach
       };
       
       console.log('Data to send:', seanceData);
@@ -282,18 +279,12 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
       
       // Préparer les données pour l'API
       const seanceData = {
-        ...newSeance,
+        client_nom: newSeance.client_nom,
+        client_prenom: newSeance.client_prenom,
+        date_jour: newSeance.date_jour,
         nombre_heures: Number(newSeance.nombre_heures) || 1,
         montant_paye: Number(newSeance.montant_paye) || 0,
-        // Gérer le coach sélectionné
-        coach: newSeance.coach_id !== null && newSeance.coach_id !== undefined
-          ? {
-              id: newSeance.coach_id,
-              nom: '',
-              prenom: '',
-              categorie: 'COACH'
-            }
-          : null
+        personnel_id: newSeance.personnel_id, // coach
       };
       
       await apiClient.createSeance(seanceData);
@@ -313,7 +304,7 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
         date_jour: formatDateFns(new Date(), 'yyyy-MM-dd'),
         nombre_heures: 1,
         montant_paye: 0,
-        coach_id: null
+        personnel_id: null
       });
       
     } catch (error: any) {
@@ -664,10 +655,10 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                       Coach (optionnel)
                     </Label>
                     <Select
-                      value={newSeance.coach_id ? newSeance.coach_id.toString() : 'none'}
+                      value={newSeance.personnel_id ? newSeance.personnel_id.toString() : 'none'}
                       onValueChange={(value) => setNewSeance({
                         ...newSeance, 
-                        coach_id: value === 'none' ? null : Number(value)
+                        personnel_id: value === 'none' ? null : Number(value)
                       })}
                     >
                       <SelectTrigger className="col-span-3">

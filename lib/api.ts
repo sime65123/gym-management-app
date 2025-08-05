@@ -2,6 +2,9 @@
 //export const API_BASE_URL = "http://127.0.0.1:8000/api" 
 export const API_BASE_URL = "https://typhanieyel.pythonanywhere.com/api"
 
+// Pour le typage des présences
+import type { Presence } from "../components/dashboard/presence-management";
+
   // export const API_BASE_URL = "http://127.0.0.1:8000/api" 
 //export const API_BASE_URL = "https://33fd2f83-888e-4b9d-a899-f82716e74537-00-2i0tlxi804sf6.spock.replit.dev/api"
 
@@ -966,8 +969,15 @@ async validerReservation(id: number, montant: number): Promise<any> {
       body: JSON.stringify({ montant }),
     });
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || "Erreur lors de la validation de la réservation");
+      let errorMessage = "Erreur lors de la validation de la réservation";
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.detail || JSON.stringify(errorData) || errorMessage;
+      } catch (e) {
+        // Si ce n'est pas du JSON, récupérer le texte brut (probablement HTML)
+        errorMessage = await response.text();
+      }
+      throw new Error(errorMessage);
     }
     return await response.json();
   } catch (error) {
@@ -996,6 +1006,60 @@ async getAbonnements(): Promise<Abonnement[]> {
 }
 
 // Séances
+async createSeance(data: { client_nom: string; client_prenom: string; date_jour: string; nombre_heures: number; montant_paye: number; personnel_id: number }) {
+  try {
+    // Construction du payload pour le backend
+    const payload = {
+      client_nom: data.client_nom,
+      client_prenom: data.client_prenom,
+      date_jour: data.date_jour,
+      nombre_heures: data.nombre_heures,
+      montant_paye: data.montant_paye,
+      personnel_id: data.personnel_id,
+    };
+    const response = await fetch(`${API_BASE_URL}/seances/`, {
+      method: "POST",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      let errorData: any = {};
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { message: await response.text() };
+      }
+      throw new Error(errorData.detail || errorData.message || JSON.stringify(errorData) || "Erreur lors de la création de la séance");
+    }
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
+async updateSeance(id: number, data: { client_nom?: string; client_prenom?: string; date_jour?: string; nombre_heures?: number; montant_paye?: number; personnel_id?: number }) {
+  try {
+    const payload: any = { ...data };
+    const response = await fetch(`${API_BASE_URL}/seances/${id}/`, {
+      method: "PATCH",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      let errorData: any = {};
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { message: await response.text() };
+      }
+      throw new Error(errorData.detail || errorData.message || JSON.stringify(errorData) || "Erreur lors de la modification de la séance");
+    }
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+}
+
 async getSeances(): Promise<Seance[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/seances/`, {
@@ -1057,10 +1121,11 @@ async createPresence(data: { date: string; present: boolean; commentaire?: strin
   try {
     // Nettoyage du payload :
     const payload: any = {
-      date: data.date,
+      date_jour: data.date, // Correction ici !
       present: !!data.present,
       commentaire: data.commentaire || '',
     };
+
     if (data.personnel_id) {
       payload.personnel_id = data.personnel_id;
     } else if (data.employe_id) {
@@ -1093,8 +1158,69 @@ async createPresence(data: { date: string; present: boolean; commentaire?: strin
   }
 }
 
+// Récupérer les présences
+async getPresences(): Promise<Presence[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/presences/`, {
+      headers: this.getAuthHeaders(),
+    });
+    const data = await response.json();
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data && Array.isArray(data.results)) {
+      return data.results;
+    }
+    return [];
+  } catch (error) {
+    console.error("Erreur lors de la récupération des présences:", error);
+    return [];
+  }
+}
 
+// Mettre à jour une présence
+async updatePresence(id: number, data: Partial<Presence>): Promise<Presence> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/presences/${id}/`, {
+      method: "PATCH",
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      let errorData: any = {};
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { message: await response.text() };
+      }
+      throw new Error(errorData.detail || errorData.message || JSON.stringify(errorData) || "Erreur lors de la modification de la présence");
+    }
+    return await response.json();
+  } catch (error) {
+    throw error;
+  }
+}
 
+// Supprimer une présence
+async deletePresence(id: number): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/presences/${id}/`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+    });
+    if (!response.ok) {
+      let errorData: any = {};
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { message: await response.text() };
+      }
+      throw new Error(errorData.detail || errorData.message || JSON.stringify(errorData) || "Erreur lors de la suppression de la présence");
+    }
+    return;
+  } catch (error) {
+    throw error;
+  }
+}
 
 // Abonnements clients présentiels
 async createAbonnementClientPresentiel(data: Partial<AbonnementClientPresentiel>): Promise<AbonnementClientPresentiel> {

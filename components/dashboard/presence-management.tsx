@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ConfirmDeleteButton } from "@/components/common/confirm-delete-button"
 import { useToast } from "@/components/ui/use-toast"
 
-interface Presence {
+export interface Presence {
   id: number
   personnel?: {
     id: number
