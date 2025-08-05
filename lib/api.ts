@@ -1055,14 +1055,36 @@ async createCharge(data: { titre: string; montant: number; date: string; descrip
 // Créer une présence
 async createPresence(data: { date: string; present: boolean; commentaire?: string; personnel_id?: number; employe_id?: number }) {
   try {
+    // Nettoyage du payload :
+    const payload: any = {
+      date: data.date,
+      present: !!data.present,
+      commentaire: data.commentaire || '',
+    };
+    if (data.personnel_id) {
+      payload.personnel_id = data.personnel_id;
+    } else if (data.employe_id) {
+      payload.employe_id = data.employe_id;
+    }
+    // Jamais les deux à la fois
+
     const response = await fetch(`${API_BASE_URL}/presences/`, {
       method: "POST",
       headers: this.getAuthHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw { status: response.status, message: errorData.detail || "Erreur lors de la création de la présence" };
+      let errorData: any = {};
+      try {
+        errorData = await response.json();
+      } catch (e) {
+        errorData = { message: await response.text() };
+      }
+      console.error("Réponse d'erreur backend:", errorData);
+      throw {
+        status: response.status,
+        message: errorData.detail || errorData.message || JSON.stringify(errorData) || "Erreur lors de la création de la présence"
+      };
     }
     return await response.json();
   } catch (error) {
@@ -1073,7 +1095,21 @@ async createPresence(data: { date: string; present: boolean; commentaire?: strin
 
 
 
+
 // Abonnements clients présentiels
+async createAbonnementClientPresentiel(data: Partial<AbonnementClientPresentiel>): Promise<AbonnementClientPresentiel> {
+  const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/`, {
+    method: "POST",
+    headers: this.getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Erreur lors de la création de l'abonnement client présentiel");
+  }
+  return await response.json();
+}
+
 async getAbonnementsClientsPresentiels(): Promise<AbonnementClientPresentiel[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/`, {
@@ -1147,6 +1183,44 @@ async getAbonnementsClientsPresentiels(): Promise<AbonnementClientPresentiel[]> 
     
     // Retourner le blob pour le téléchargement
     return response.blob();
+  }
+
+  // Personnel
+  async getPersonnel(): Promise<{ id: number; nom: string; prenom: string; categorie: string }[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/personnel/`, {
+        headers: this.getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      } else if (data && Array.isArray(data.results)) {
+        return data.results;
+      }
+      return [];
+    } catch (error) {
+      console.error("Erreur lors de la récupération du personnel:", error);
+      return [];
+    }
+  }
+
+  // Coachs
+  async getCoachs(): Promise<{ id: number; nom: string; prenom: string; categorie: string }[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/coachs/`, {
+        headers: this.getAuthHeaders(),
+      });
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      } else if (data && Array.isArray(data.results)) {
+        return data.results;
+      }
+      return [];
+    } catch (error) {
+      console.error("Erreur lors de la récupération des coachs:", error);
+      return [];
+    }
   }
 
   async getUserReservations(userId: number): Promise<{
