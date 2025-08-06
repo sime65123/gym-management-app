@@ -18,13 +18,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/components/auth/auth-context"
 
 interface Seance {
+  personnel_id?: number | null;
   id: number;
   client_nom?: string | null;
   client_prenom?: string | null;
   date_jour?: string | null;
   nombre_heures?: number | null;
   montant_paye?: number | null;
-  coach_id?: number | null;
   coach?: {
     id: number;
     nom: string;
@@ -213,7 +213,7 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
         date_jour: editingSeance.date_jour ?? '',
         nombre_heures: Number(editingSeance.nombre_heures) || 1,
         montant_paye: Number(editingSeance.montant_paye) || 0,
-        personnel_id: editingSeance.coach?.id ?? 0, // coach
+        personnel_id: editingSeance.personnel_id ?? 0, // coach
       };
       
       console.log('Data to send:', seanceData);
@@ -257,14 +257,13 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
     
     const editingData = {
       ...seance,
-      // S'assurer que les valeurs numériques sont bien définies
       nombre_heures: seance.nombre_heures || 1,
       montant_paye: seance.montant_paye || 0,
-      // Ajouter l'ID du coach à l'objet coach pour la sélection
       coach: seance.coach ? {
         ...seance.coach,
         id: seance.coach.id || 0
-      } : null
+      } : null,
+      personnel_id: seance.coach ? seance.coach.id : null,
     };
     
     console.log('Editing data prepared:', editingData);
@@ -779,10 +778,11 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
                         Coach (optionnel)
                       </Label>
                       <Select
-                        value={editingSeance.coach_id ? editingSeance.coach_id.toString() : 'none'}
+                        value={editingSeance.personnel_id ? editingSeance.personnel_id.toString() : 'none'}
                         onValueChange={(value) => setEditingSeance({
-                          ...editingSeance, 
-                          coach_id: value === 'none' ? null : Number(value)
+                          ...editingSeance,
+                          personnel_id: value === 'none' ? null : Number(value),
+                          coach: value === 'none' ? null : coachs.find((c) => c.id === Number(value)) || null,
                         })}
                       >
                         <SelectTrigger className="col-span-3">

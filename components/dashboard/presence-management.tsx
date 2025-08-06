@@ -280,19 +280,48 @@ export function PresenceManagement() {
   const handleUpdatePresence = async () => {
     if (!selectedPresence) return;
     try {
-      const updateData = {
-        statut: formData.statut,
+      // Préparer un payload plus complet selon le type de présence
+      const updateData: any = {
         heure_arrivee: formData.heure_arrivee,
+        date_jour: formData.date_jour,
       };
+      // Pour la compatibilité backend, envoyer "present" au lieu de "statut" si besoin
+      if (formData.statut === "PRESENT") {
+        updateData.present = true;
+        updateData.statut = "PRESENT";
+      } else {
+        updateData.present = false;
+        updateData.statut = "ABSENT";
+      }
+      // Ajouter l'ID du personnel ou de l'employé selon la présence sélectionnée
+      if (selectedPresence?.personnel?.id) {
+        updateData.personnel_id = selectedPresence.personnel.id;
+      }
+      if (selectedPresence?.employe?.id) {
+        updateData.employe_id = selectedPresence.employe.id;
+      }
+      console.log("[DEBUG] Données envoyées pour updatePresence:", updateData);
       
-      await apiClient.updatePresence(selectedPresence.id, updateData);
-      await loadPresences();
-      setIsEditDialogOpen(false);
-      toast({
-        title: "Modification réussie",
-        description: "La présence a été modifiée.",
-        duration: 5000,
-      });
+      try {
+        await apiClient.updatePresence(selectedPresence.id, updateData);
+        await loadPresences();
+        setIsEditDialogOpen(false);
+        toast({
+          title: "Modification réussie",
+          description: "La présence a été modifiée.",
+          duration: 5000,
+        });
+      } catch (error: any) {
+        console.error("[DEBUG] Erreur lors de la modification de la présence:", error);
+        let errorMessage = "La modification a échoué.";
+        if (error?.message) errorMessage = error.message;
+        toast({
+          title: "Erreur",
+          description: errorMessage,
+          variant: "destructive",
+          duration: 5000,
+        });
+      }
     } catch (error) {
       toast({
         title: "Erreur",
@@ -363,11 +392,46 @@ export function PresenceManagement() {
     return <div className="flex justify-center p-8">Chargement...</div>
   }
 
+  // Détection de la présence du jour pour l'employé connecté
+  let myPresenceToday = false;
+  let myPresenceId = null;
+  if (currentUser && presences.length > 0) {
+    const today = new Date().toISOString().split("T")[0];
+    const found = presences.find(
+      (p) => p.date_jour === today && p.employe && p.employe.id === currentUser.id && p.statut === "PRESENT"
+    );
+    if (found) {
+      myPresenceToday = true;
+      myPresenceId = found.id;
+    }
+  }
+
   return (
     <div className="space-y-6">
+      {/* Panneau présence employé connecté */}
+      {presenceType === "employe" && currentUser && (
+        myPresenceToday ? (
+          <div className="bg-green-100 border border-green-400 text-green-800 px-4 py-3 rounded flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            <span>Vous êtes marqué <b>présent</b> aujourd'hui !</span>
+          </div>
+        ) : (
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded flex items-center gap-2 justify-between">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-yellow-600" />
+              <span>Vous n'avez pas encore marqué votre présence aujourd'hui</span>
+            </div>
+            <Button variant="outline" onClick={() => { setPresenceType("employe"); setIsCreateDialogOpen(true); }}>
+              Marquer Présence
+            </Button>
+          </div>
+        )
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-r from-green-500 to-emerald-600 text-white">
+        {/* Cartes de stats */}
+      <Card className="bg-gradient-to-r from-green-500 to-emerald-600 text-white">
           <CardHeader>
             <CardTitle className="flex items-center">
               <CheckCircle className="h-6 w-6 mr-2" />
