@@ -96,14 +96,14 @@ export function AbonnementClientManagement() {
       }
       
       // Créer l'objet d'abonnement avec les données du formulaire
-      const dataToSend = {
+      const dataToSend: Partial<AbonnementClientPresentiel> = {
         client_nom: formData.client_nom,
         client_prenom: formData.client_prenom,
         abonnement: Number(formData.abonnement),
         date_debut: formData.date_debut,
         montant_paye: 0,
-        statut_paiement: 'PAIEMENT_INACHEVE',
-        statut: 'EN_COURS'
+        statut_paiement: 'PAIEMENT_INACHEVE' as const,
+        statut: 'EN_COURS' as const
       };
 
       // Envoyer les données au serveur
@@ -274,40 +274,40 @@ export function AbonnementClientManagement() {
         description: error?.message || "Erreur lors de la génération de la facture.",
         variant: "destructive",
         duration: 5000,
-      })
+      });
     }
   }
 
   const handleTelechargerFacture = async (abonnement: AbonnementClientPresentiel) => {
     try {
-      const response = await apiClient.telechargerFactureAbonnementPresentiel(abonnement.id)
+      setLoading(true);
+      const { blob, filename } = await apiClient.telechargerFactureAbonnementPresentiel(abonnement.id);
       
-      if (response instanceof Blob) {
-        // Créer un lien de téléchargement
-        const url = window.URL.createObjectURL(response)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `facture_abonnement_${abonnement.id}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        
-        toast({
-          title: "Téléchargement réussi",
-          description: "La facture a été téléchargée.",
-          duration: 5000,
-        })
-      } else {
-        throw new Error("Format de réponse inattendu lors du téléchargement de la facture")
-      }
+      // Créer un lien de téléchargement
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `facture_abonnement_${abonnement.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast({
+        title: "Téléchargement réussi",
+        description: "La facture a été téléchargée avec succès.",
+        duration: 5000,
+      });
     } catch (error: any) {
+      console.error("Erreur lors du téléchargement de la facture:", error);
       toast({
         title: "Erreur",
-        description: error?.message || "Erreur lors du téléchargement de la facture.",
+        description: error?.message || "Une erreur est survenue lors du téléchargement de la facture.",
         variant: "destructive",
         duration: 5000,
-      })
+      });
+    } finally {
+      setLoading(false);
     }
   }
 

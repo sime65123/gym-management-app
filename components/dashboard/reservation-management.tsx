@@ -136,57 +136,46 @@ export function ReservationManagement() {
       }
       
       // Appeler l'API avec le montant saisi
-      const response = await apiClient.validerReservation(reservation.id, { 
-        montant: montantValue 
-      })
-      
-      // Recharger les réservations
-      await loadReservations()
-      
+      await apiClient.validerReservation(reservation.id, montantValue);
+
+      // Recharger les réservations (pour mettre à jour le statut et le ticket)
+      await loadReservations();
+
       // Fermer le dialogue et réinitialiser le formulaire
-      setValidationDialog({ open: false, reservation: null })
-      setMontant("")
-      
-      // Afficher le message approprié selon la réponse
-      if (resteAPayer > montantValue) {
+      setValidationDialog({ open: false, reservation: null });
+      setMontant("");
+
+      // Chercher la réservation validée mise à jour
+      const updated = reservations.find(r => r.id === reservation.id);
+      // Afficher le ticket automatiquement si disponible
+      if (updated && updated.ticket_url) {
+        window.open(updated.ticket_url, '_blank');
+        toast({
+          title: "Ticket généré",
+          description: "Le ticket est disponible et a été ouvert dans un nouvel onglet."
+        });
+      } else if (resteAPayer > montantValue) {
         toast({
           title: "Paiement partiel enregistré",
           description: `Paiement de ${montantValue.toLocaleString('fr-FR')} FCFA enregistré. Il reste ${(resteAPayer - montantValue).toLocaleString('fr-FR')} FCFA à payer.`
-        })
+        });
       } else {
         toast({
           title: "Réservation validée",
           description: `La réservation a été entièrement payée pour un montant de ${montantValue.toLocaleString('fr-FR')} FCFA.`
-        })
+        });
       }
     } catch (error) {
-      console.error("Erreur lors de la validation:", error)
-      
-      // Extraire le message d'erreur de la réponse
-      let errorMessage = "La validation de la réservation a échoué."
-      if (error && typeof error === 'object' && 'response' in error) {
-        try {
-          const errorResponse = error as { response: { json: () => Promise<{ error?: string; message?: string }> } }
-          const errorData = await errorResponse.response.json()
-          errorMessage = errorData.error || errorData.message || errorMessage
-        } catch (e) {
-          // Si on ne peut pas parser la réponse JSON, on utilise le status
-          const statusError = error as { response: { status: number } }
-          if (statusError.response.status === 400) {
-            errorMessage = "Données invalides. Vérifiez le montant saisi."
-          } else if (statusError.response.status === 404) {
-            errorMessage = "Réservation introuvable."
-          } else if (statusError.response.status === 403) {
-            errorMessage = "Vous n'avez pas les permissions pour valider cette réservation."
-          }
-        }
+      console.error("Erreur lors de la validation:", error);
+      let errorMessage = "La validation de la réservation a échoué.";
+      if (error instanceof Error && error.message) {
+        errorMessage = error.message;
       }
-      
       toast({
         title: "Erreur",
         description: errorMessage,
         variant: "destructive"
-      })
+      });
     } finally {
       setValidating(false)
     }

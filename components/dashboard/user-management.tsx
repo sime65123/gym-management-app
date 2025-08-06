@@ -65,24 +65,7 @@ const UserManagement = forwardRef<{ loadUsers: () => Promise<void> }, UserManage
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.getUsers() as User[] | { results: User[] };
-      
-      // Normalisation de la réponse
-      const usersArray = (() => {
-        if (Array.isArray(response)) return response;
-        if (response && 'results' in response && Array.isArray(response.results)) {
-          return response.results;
-        }
-        console.error("Format de réponse inattendu pour les utilisateurs:", response);
-        toast({
-          title: "Erreur de format",
-          description: "Le format des données reçues est incorrect.",
-          variant: "destructive",
-          duration: 5000,
-        });
-        return [];
-      })();
-      
+      const usersArray = await apiClient.getUsers(); // User[] déjà normalisé
       setUsers(usersArray);
       
       if (onReload) {

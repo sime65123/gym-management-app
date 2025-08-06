@@ -122,8 +122,10 @@ export function SeanceManagement({ onReload }: { onReload?: () => void }) {
         const dateB = b.date_heure ? new Date(b.date_heure).getTime() : 0;
         return dateB - dateA; // Ordre décroissant
       });
-      
-      setSeances(sortedSeances);
+
+      // Déduplication défensive par id (évite tout doublon même si l'API en renvoie)
+      const dedupedSeances = Array.from(new Map(sortedSeances.map(s => [s.id, s])).values());
+      setSeances(dedupedSeances);
       
       // Charger la liste des coachs (personnels ayant role 'coach')
       try {

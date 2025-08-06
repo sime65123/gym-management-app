@@ -235,6 +235,66 @@ export interface PaiementTranche {
 }
 
 class ApiClient {
+  // Créer une réservation
+  async createReservation(data: Partial<Reservation>): Promise<Reservation> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/reservations/`, {
+        method: "POST",
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: await response.text() };
+        }
+        throw new Error(errorData.detail || errorData.message || JSON.stringify(errorData) || "Erreur lors de la création de la réservation");
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Erreur lors de la création de la réservation:", error);
+      throw error;
+    }
+  }
+  // Récupérer le rapport financier global
+  async getFinancialReport(): Promise<FinancialData> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/financial-report/`, {
+        headers: this.getAuthHeaders(),
+      });
+      if (!response.ok) {
+        let message = `Erreur ${response.status}`;
+        try {
+          const data = await response.json();
+          message = data.detail || data.message || message;
+        } catch (e) {}
+        throw new Error(message);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error("Erreur lors de la récupération du rapport financier:", error);
+      throw error;
+    }
+  }
+  // Supprimer un membre du personnel
+  async deletePersonnel(id: number): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/personnel/${id}/`, {
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
+    });
+    if (!response.ok) {
+      let errorMsg = `Erreur ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.detail || errorData.message || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
+    }
+    // Pas de contenu attendu sur succès (204)
+    return;
+  }
   private getAuthHeaders(): { [key: string]: string } {
     const token = localStorage.getItem("access_token");
     console.log('Token d\'accès actuel:', token ? 'Présent' : 'Manquant');
@@ -694,11 +754,20 @@ class ApiClient {
   }
 
   // Users (Admin only)
-  async getUsers(): Promise<ApiResponse<User>> {
-    const response = await fetch(`${API_BASE_URL}/users/`, {
-      headers: this.getAuthHeaders(),
-    })
-    return this.handleResponse<ApiResponse<User>>(response)
+  async getUsers(): Promise<User[]> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/`, {
+        headers: this.getAuthHeaders(),
+      });
+      const data = await this.handleResponse<any>(response);
+      // Normalisation du format
+      if (Array.isArray(data)) return data;
+      if (data && Array.isArray(data.results)) return data.results;
+      return [];
+    } catch (error) {
+      console.error("Erreur dans getUsers:", error);
+      return [];
+    }
   }
 
   async createUser(userData: any) {
@@ -970,12 +1039,12 @@ async validerReservation(id: number, montant: number): Promise<any> {
     });
     if (!response.ok) {
       let errorMessage = "Erreur lors de la validation de la réservation";
+      const rawBody = await response.text();
       try {
-        const errorData = await response.json();
+        const errorData = JSON.parse(rawBody);
         errorMessage = errorData.detail || JSON.stringify(errorData) || errorMessage;
-      } catch (e) {
-        // Si ce n'est pas du JSON, récupérer le texte brut (probablement HTML)
-        errorMessage = await response.text();
+      } catch {
+        errorMessage = rawBody || errorMessage;
       }
       throw new Error(errorMessage);
     }
@@ -1236,21 +1305,34 @@ async createAbonnementClientPresentiel(data: Partial<AbonnementClientPresentiel>
   return await response.json();
 }
 
+/**
+ * Récupère la liste des abonnements clients en présentiel
+ * @returns Promise<AbonnementClientPresentiel[]> Liste des abonnements clients
+ */
 async getAbonnementsClientsPresentiels(): Promise<AbonnementClientPresentiel[]> {
   try {
     const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/`, {
       headers: this.getAuthHeaders(),
     });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "Erreur lors de la récupération des abonnements clients présentiels");
+    }
+    
     const data = await response.json();
+    
+    // Gérer à la fois les réponses paginées et les tableaux simples
     if (Array.isArray(data)) {
       return data;
     } else if (data && Array.isArray(data.results)) {
       return data.results;
     }
+    
     return [];
   } catch (error) {
     console.error("Erreur lors de la récupération des abonnements clients présentiels:", error);
-    return [];
+    throw error; // Propager l'erreur pour une meilleure gestion en amont
   }
 }
 
@@ -1297,18 +1379,101 @@ async getAbonnementsClientsPresentiels(): Promise<AbonnementClientPresentiel[]> 
     return this.handleResponse(response)
   }
 
-  async telechargerFactureAbonnementPresentiel(abonnementId: number) {
-    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${abonnementId}/telecharger_facture/`, {
+  /**
+   * Télécharge la facture d'un abonnement client présentiel
+   * @param abonnementId - ID de l'abonnement client
+   * @returns Promise<{ blob: Blob; filename: string }> - Objet contenant le blob du fichier et le nom du fichier
+   */
+  async telechargerFactureAbonnementPresentiel(abonnementId: number): Promise<{ blob: Blob; filename: string }> {
+    try {
+      // D'abord, vérifier si une facture existe déjà
+      const abonnement = await this.getAbonnementClientPresentiel(abonnementId);
+      
+      // Si une facture existe déjà, la télécharger directement
+      if (abonnement.facture_pdf_url) {
+        const response = await fetch(abonnement.facture_pdf_url, {
+          headers: this.getAuthHeaders(),
+        });
+        
+        if (!response.ok) {
+          // Si le téléchargement échoue, essayer de régénérer la facture
+          return this.regenererEtTelechargerFacture(abonnementId);
+        }
+        
+        const blob = await response.blob();
+        const filename = this.extraireNomFichierDepuisUrl(abonnement.facture_pdf_url) || `facture-${abonnementId}.pdf`;
+        return { blob, filename };
+      }
+      
+      // Si aucune facture n'existe, en générer une nouvelle
+      return this.regenererEtTelechargerFacture(abonnementId);
+    } catch (error) {
+      console.error("Erreur lors du téléchargement de la facture:", error);
+      throw new Error("Impossible de télécharger la facture. Veuillez réessayer ou contacter le support.");
+    }
+  }
+
+  /**
+   * Méthode utilitaire pour régénérer et télécharger une facture
+   */
+  private async regenererEtTelechargerFacture(abonnementId: number): Promise<{ blob: Blob; filename: string }> {
+    try {
+      // D'abord générer la facture
+      await this.genererFactureAbonnementPresentiel(abonnementId);
+      
+      // Ensuite récupérer les données mises à jour de l'abonnement
+      const abonnement = await this.getAbonnementClientPresentiel(abonnementId);
+      
+      if (!abonnement.facture_pdf_url) {
+        throw new Error("La génération de la facture a échoué");
+      }
+      
+      // Télécharger la facture générée
+      const response = await fetch(abonnement.facture_pdf_url, {
+        headers: this.getAuthHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const filename = this.extraireNomFichierDepuisUrl(abonnement.facture_pdf_url) || `facture-${abonnementId}.pdf`;
+      
+      return { blob, filename };
+    } catch (error) {
+      console.error("Erreur lors de la régénération de la facture:", error);
+      throw new Error("Impossible de générer la facture. Veuillez réessayer ou contacter le support.");
+    }
+  }
+
+  /**
+   * Extrait le nom du fichier à partir d'une URL
+   */
+  private extraireNomFichierDepuisUrl(url: string): string | null {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      return pathname.split('/').pop() || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Récupère les détails d'un abonnement client présentiel
+   */
+  async getAbonnementClientPresentiel(id: number): Promise<AbonnementClientPresentiel> {
+    const response = await fetch(`${API_BASE_URL}/abonnements-clients-presentiels/${id}/`, {
       headers: this.getAuthHeaders(),
     });
     
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: "Une erreur est survenue" }));
-      throw new Error(error.message || `Erreur ${response.status}`);
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.detail || `Erreur lors de la récupération de l'abonnement`);
     }
     
-    // Retourner le blob pour le téléchargement
-    return response.blob();
+    return response.json();
   }
 
   // Personnel
